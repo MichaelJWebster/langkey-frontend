@@ -1,5 +1,6 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { clearToken, fetchHello, getToken, login, type Hello } from './api'
+import { useState, type FormEvent } from 'react'
+import { clearToken, getToken, login } from './api'
+import Dashboard from './Dashboard'
 
 export default function App() {
   const [authed, setAuthed] = useState(() => getToken() !== null)
@@ -79,46 +80,5 @@ function LoginCard({ onLogin }: { onLogin: () => void }) {
         {busy ? 'Signing in…' : 'Sign in'}
       </button>
     </form>
-  )
-}
-
-function Dashboard({ onLogout }: { onLogout: () => void }) {
-  const [hello, setHello] = useState<Hello | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetchHello()
-      .then(setHello)
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : 'Failed to load')
-        if (getToken() === null) onLogout()
-      })
-  }, [onLogout])
-
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-      {error ? (
-        <p className="text-sm text-red-700">{error}</p>
-      ) : hello ? (
-        <>
-          <p className="text-2xl font-medium">{hello.greeting}</p>
-          <p className="mt-2 text-slate-500">
-            Signed in as <span className="font-medium text-slate-700">{hello.display_name}</span>
-          </p>
-          <p className="mt-6 text-xs text-slate-400">
-            End-to-end slice working: this greeting travelled from Postgres, through the
-            LangKey API, to your browser.
-          </p>
-        </>
-      ) : (
-        <p className="text-slate-400">Loading…</p>
-      )}
-      <button
-        onClick={onLogout}
-        className="mt-6 text-sm font-medium text-sky-600 transition hover:text-sky-800"
-      >
-        Sign out
-      </button>
-    </div>
   )
 }

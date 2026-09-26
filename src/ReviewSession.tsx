@@ -1,0 +1,172 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { fetchQueue, submitReview, type Card } from './api'
+
+type Rating = 1 | 2 | 3 | 4
+
+const RATINGS: { rating: Rating; label: string; key: string; classes: string }[] = [
+  { rating: 1, label: 'Again', key: '1', classes: 'bg-red-50 text-red-700 hover:bg-red-100 border-red-200' },
+  { rating: 2, label: 'Hard', key: '2', classes: 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200' },
+  { rating: 3, label: 'Good', key: '3', classes: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200' },
+  { rating: 4, label: 'Easy', key: '4', classes: 'bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200' },
+]
+
+export default function ReviewSession({ onFinish }: { onFinish: () => void }) {
+  const [cards, setCards] = useState<Card[] | null>(null)
+  const [index, setIndex] = useState(0)
+  const [revealed, setRevealed] = useState(false)
+  const [done, setDone] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  // Cards rated Again/Hard come due again within the sitting; requeue them locally.
+  const requeued = useRef<Card[]>([])
+
+  useEffect(() => {
+    fetchQueue()
+      .then((q) => setCards(q.cards))
+      .catch((e) => setError(e.message))
+  }, [])
+
+  const current = cards && index < cards.length ? cards[index] : null
+
+  const advance = useCallback(() => {
+    setRevealed(false)
+    setIndex((i) => i + 1)
+  }, [])
+
+  const rate = useCallback(
+    async (rating: Rating) => {
+      if (!current) return
+      setDone((d) => d + 1)
+      advance()
+      try {
+        const result = await submitReview(current.card_id, rating)
+        if (result.requeue) {
+          requeued.current.push({ ...current, is_new: false })
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to save review')
+      }
+    },
+    [current, advance],
+  )
+
+  // When the main queue is exhausted, drain locally requeued learning cards.
+  useEffect(() => {
+    if (cards && index >= cards.length && requeued.current.length > 0) {
+      setCards([...cards, ...requeued.current])
+      requeued.current = []
+    }
+  }, [cards, index])
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!current) return
+      if (!revealed && (e.key === ' ' || e.key === 'Enter')) {
+        e.preventDefault()
+        setRevealed(true)
+      } else if (revealed && ['1', '2', '3', '4'].includes(e.key)) {
+        rate(Number(e.key) as Rating)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [current, revealed, rate])
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <p className="text-sm text-red-700">{error}</p>
+        <button onClick={onFinish} className="mt-4 text-sm font-medium text-sky-600">
+          Back
+        </button>
+      </div>
+    )
+  }
+
+  if (!cards) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-400 shadow-sm">
+        Loading session…
+      </div>
+    )
+  }
+
+  if (!current) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <div className="text-4xl">🎉</div>
+        <p className="mt-3 text-xl font-medium">
+          {done > 0 ? `Session complete — ${done} cards reviewed` : 'Nothing due right now'}
+        </p>
+        <p className="mt-1 text-sm text-slate-500">
+          {done > 0 ? 'Kjempebra! Come back when more cards are due.' : 'Come back later, or tomorrow for new words.'}
+        </p>
+        <button
+          onClick={onFinish}
+          className="mt-6 rounded-lg bg-sky-600 px-6 py-2.5 font-medium text-white transition hover:bg-sky-700"
+        >
+          Back to dashboard
+        </button>
+      </div>
+    )
+  }
+
+  const isRecognition = current.direction === 'recognition'
+  const front = isRecognition ? current.item.source_text : current.item.translation
+  const back = isRecognition ? current.item.translation : current.item.source_text
+
+  return (
+    <div>
+      <div className="mb-4 flex items-center justify-between text-xs text-slate-400">
+        <span>
+          {index + 1} / {cards.length}
+        </span>
+        <span className="flex items-center gap-2">
+          {current.is_new && (
+            <span className="rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-700">new</span>
+          )}
+          <span className="rounded-full bg-slate-100 px-2 py-0.5">
+            {isRecognition ? 'norsk → english' : 'english → norsk'}
+          </span>
+        </span>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <p className="text-3xl font-semibold tracking-tight">{front}</p>
+        {current.item.pos && (
+          <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">{current.item.pos}</p>
+        )}
+
+        {revealed ? (
+          <div className="mt-6 border-t border-slate-100 pt-6">
+            <p className="text-2xl text-slate-800">{back}</p>
+            <p className="mt-4 text-slate-600">{current.item.example_sentence}</p>
+            <p className="mt-1 text-sm text-slate-400">{current.item.example_translation}</p>
+          </div>
+        ) : (
+          <button
+            onClick={() => setRevealed(true)}
+            className="mt-8 w-full rounded-lg bg-slate-900 py-3 font-medium text-white transition hover:bg-slate-700"
+          >
+            Show answer
+            <span className="ml-2 text-xs text-slate-400">space</span>
+          </button>
+        )}
+      </div>
+
+      {revealed && (
+        <div className="mt-4 grid grid-cols-4 gap-2">
+          {RATINGS.map(({ rating, label, key, classes }) => (
+            <button
+              key={rating}
+              onClick={() => rate(rating)}
+              className={`rounded-lg border py-3 text-sm font-medium transition ${classes}`}
+            >
+              {label}
+              <span className="mt-0.5 block text-[10px] opacity-60">{key}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
