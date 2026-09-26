@@ -30,7 +30,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     )
   }
 
-  const todo = progress ? progress.due_now + progress.new_remaining_today : 0
+  const todo = progress ? progress.due_now + progress.new_available : 0
 
   return (
     <div>
@@ -52,7 +52,9 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
               disabled={todo === 0}
               className="mt-8 w-full rounded-lg bg-sky-600 py-3.5 text-lg font-medium text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {todo > 0 ? `Study now — ${progress.due_now} due, ${progress.new_remaining_today} new` : 'All done for now 🎉'}
+              {todo > 0
+                ? `Study now — ${progress.due_now} due${progress.new_available > 0 ? ` · new words ready` : ''}`
+                : 'All done for now 🎉'}
             </button>
 
             <p className="mt-4 text-center text-xs text-slate-400">

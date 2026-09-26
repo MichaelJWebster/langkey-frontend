@@ -65,7 +65,7 @@ export interface ReviewResult {
 
 export interface Progress {
   due_now: number
-  new_remaining_today: number
+  new_available: number
   reviewed_today: number
   cards_learning: number
   cards_established: number
