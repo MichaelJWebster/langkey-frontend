@@ -79,8 +79,17 @@ export interface Progress {
   streak_days: number
 }
 
-export const fetchQueue = () => request<Queue>('/api/v1/reviews/queue')
+export interface Topic {
+  topic: string
+  label: string
+  total: number
+  remaining: number
+}
+
+export const fetchQueue = (focus?: string | null) =>
+  request<Queue>(`/api/v1/reviews/queue${focus ? `?focus=${encodeURIComponent(focus)}` : ''}`)
 export const fetchProgress = () => request<Progress>('/api/v1/progress')
+export const fetchTopics = () => request<Topic[]>('/api/v1/topics')
 
 export const submitReview = (cardId: string, rating: 1 | 2 | 3 | 4) =>
   request<ReviewResult>('/api/v1/reviews', {

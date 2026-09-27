@@ -76,7 +76,7 @@ function RatingLegend() {
   )
 }
 
-export default function ReviewSession({ onFinish }: { onFinish: () => void }) {
+export default function ReviewSession({ focus, onFinish }: { focus?: string | null; onFinish: () => void }) {
   const [cards, setCards] = useState<Card[] | null>(null)
   const [index, setIndex] = useState(0)
   const [revealed, setRevealed] = useState(false)
@@ -85,11 +85,18 @@ export default function ReviewSession({ onFinish }: { onFinish: () => void }) {
   // Cards rated Again/Hard come due again within the sitting; requeue them locally.
   const requeued = useRef<Card[]>([])
 
-  useEffect(() => {
-    fetchQueue()
+  const loadQueue = useCallback(() => {
+    setCards(null)
+    setIndex(0)
+    setRevealed(false)
+    setDone(0)
+    requeued.current = []
+    fetchQueue(focus)
       .then((q) => setCards(q.cards))
       .catch((e) => setError(e.message))
-  }, [])
+  }, [focus])
+
+  useEffect(loadQueue, [loadQueue])
 
   const current = cards && index < cards.length ? cards[index] : null
 
@@ -170,12 +177,20 @@ export default function ReviewSession({ onFinish }: { onFinish: () => void }) {
         <p className="mt-1 text-sm text-slate-500">
           {done > 0 ? 'Kjempebra! Come back when more cards are due.' : 'Come back later, or tomorrow for new words.'}
         </p>
-        <button
-          onClick={onFinish}
-          className="mt-6 rounded-lg bg-sky-600 px-6 py-2.5 font-medium text-white transition hover:bg-sky-700"
-        >
-          Back to dashboard
-        </button>
+        <div className="mt-6 flex justify-center gap-3">
+          <button
+            onClick={loadQueue}
+            className="rounded-lg bg-sky-600 px-6 py-2.5 font-medium text-white transition hover:bg-sky-700"
+          >
+            Keep going
+          </button>
+          <button
+            onClick={onFinish}
+            className="rounded-lg border border-slate-200 px-6 py-2.5 font-medium text-slate-600 transition hover:border-sky-300 hover:text-sky-700"
+          >
+            Change focus
+          </button>
+        </div>
       </div>
     )
   }

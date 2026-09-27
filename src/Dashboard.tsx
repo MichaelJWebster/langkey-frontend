@@ -1,15 +1,30 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchProgress, getToken, type Progress } from './api'
+import { fetchProgress, fetchTopics, getToken, type Progress, type Topic } from './api'
 import ReviewSession from './ReviewSession'
+
+const FOCUS_KEY = 'langkey.focus'
+
+function getStoredFocus(): string | null {
+  try {
+    return localStorage.getItem(FOCUS_KEY)
+  } catch {
+    return null
+  }
+}
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [progress, setProgress] = useState<Progress | null>(null)
+  const [topics, setTopics] = useState<Topic[]>([])
+  const [focus, setFocus] = useState<string | null>(getStoredFocus)
   const [error, setError] = useState<string | null>(null)
   const [inSession, setInSession] = useState(false)
 
   const refresh = useCallback(() => {
-    fetchProgress()
-      .then(setProgress)
+    Promise.all([fetchProgress(), fetchTopics()])
+      .then(([p, t]) => {
+        setProgress(p)
+        setTopics(t)
+      })
       .catch((e) => {
         // request() clears the token on 401; bounce back to the login page.
         if (getToken() === null) onLogout()
@@ -19,9 +34,20 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
 
   useEffect(refresh, [refresh])
 
+  function chooseFocus(topic: string | null) {
+    setFocus(topic)
+    try {
+      if (topic) localStorage.setItem(FOCUS_KEY, topic)
+      else localStorage.removeItem(FOCUS_KEY)
+    } catch {
+      // localStorage unavailable — focus just won't persist.
+    }
+  }
+
   if (inSession) {
     return (
       <ReviewSession
+        focus={focus}
         onFinish={() => {
           setInSession(false)
           refresh()
@@ -31,6 +57,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   }
 
   const todo = progress ? progress.due_now + progress.new_available : 0
+  const focusTopic = topics.find((t) => t.topic === focus)
 
   return (
     <div>
@@ -47,13 +74,38 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
               <Stat value={progress.reviewed_today} label="reviews today" />
             </div>
 
+            <div className="mt-6">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
+                Focus for new words
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <FocusChip
+                  label="No focus — by frequency"
+                  active={focus === null}
+                  onClick={() => chooseFocus(null)}
+                />
+                {topics
+                  .filter((t) => t.remaining > 0)
+                  .map((t) => (
+                    <FocusChip
+                      key={t.topic}
+                      label={`${t.label} (${t.remaining})`}
+                      active={focus === t.topic}
+                      onClick={() => chooseFocus(t.topic)}
+                    />
+                  ))}
+              </div>
+            </div>
+
             <button
               onClick={() => setInSession(true)}
               disabled={todo === 0}
-              className="mt-8 w-full rounded-lg bg-sky-600 py-3.5 text-lg font-medium text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
+              className="mt-6 w-full rounded-lg bg-sky-600 py-3.5 text-lg font-medium text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {todo > 0
-                ? `Study now — ${progress.due_now} due${progress.new_available > 0 ? ` · new words ready` : ''}`
+                ? `Study now — ${progress.due_now} due${
+                    focusTopic ? ` · new: ${focusTopic.label.toLowerCase()}` : ' · new words ready'
+                  }`
                 : 'All done for now 🎉'}
             </button>
 
@@ -71,6 +123,21 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         </button>
       </div>
     </div>
+  )
+}
+
+function FocusChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+        active
+          ? 'border-sky-500 bg-sky-50 text-sky-700'
+          : 'border-slate-200 text-slate-500 hover:border-sky-300 hover:text-sky-600'
+      }`}
+    >
+      {label}
+    </button>
   )
 }
 
