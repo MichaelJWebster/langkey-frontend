@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchProgress, fetchTopics, getToken, type Progress, type Topic } from './api'
 import Glossary from './Glossary'
+import ListeningSession from './ListeningSession'
 import ReviewSession from './ReviewSession'
 
 const FOCUS_KEY = 'langkey.focus'
@@ -20,6 +21,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [error, setError] = useState<string | null>(null)
   const [inSession, setInSession] = useState(false)
   const [inGlossary, setInGlossary] = useState(false)
+  const [inListening, setInListening] = useState(false)
 
   const refresh = useCallback(() => {
     Promise.all([fetchProgress(), fetchTopics()])
@@ -48,6 +50,17 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
 
   if (inGlossary) {
     return <Glossary onBack={() => setInGlossary(false)} />
+  }
+
+  if (inListening) {
+    return (
+      <ListeningSession
+        onFinish={() => {
+          setInListening(false)
+          refresh()
+        }}
+      />
+    )
   }
 
   if (inSession) {
@@ -113,6 +126,14 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                     focusTopic ? ` · new: ${focusTopic.label.toLowerCase()}` : ' · new words ready'
                   }`
                 : 'All done for now 🎉'}
+            </button>
+
+            <button
+              onClick={() => setInListening(true)}
+              disabled={progress.cards_learning + progress.cards_established === 0}
+              className="mt-2 w-full rounded-lg border border-sky-200 py-2.5 font-medium text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              🎧 Listening practice
             </button>
 
             <p className="mt-4 text-center text-xs text-slate-400">
