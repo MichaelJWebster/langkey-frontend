@@ -30,6 +30,10 @@ export function speak(text: string, audioUrl?: string | null): void {
     return
   }
   if (!canSpeak()) return
+  // Re-resolve at speak time: Chrome fills getVoices() asynchronously, and
+  // without an explicit voice it falls back to the default voice (often an
+  // English one) regardless of utterance.lang.
+  if (!norwegianVoice) norwegianVoice = pickVoice()
   window.speechSynthesis.cancel()
   const utterance = new SpeechSynthesisUtterance(text)
   utterance.lang = 'nb-NO'
