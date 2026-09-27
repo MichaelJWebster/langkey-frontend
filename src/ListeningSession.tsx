@@ -79,6 +79,10 @@ function CharLegend() {
             ⚠️ Not ⌘ Command — ⌘O opens the browser's file dialog!
           </p>
           <p className="mt-2 text-xs text-slate-400">Keys: Enter check/next · R replay · H hint · Esc exit.</p>
+          <p className="mt-2 text-xs text-slate-400">
+            Sessions adapt: sentence speed and the recognition/transcription mix follow your
+            recent results, and you can override the speed on any sentence.
+          </p>
         </div>
       )}
     </span>
@@ -95,6 +99,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
   const [answer, setAnswer] = useState('')
   const [picked, setPicked] = useState<number | null>(null)
   const [hintCount, setHintCount] = useState(0)
+  const [scale, setScale] = useState<number | null>(null)
   const [result, setResult] = useState<Result | null>(null)
   const [score, setScore] = useState({ right: 0, near: 0, total: 0 })
   const [error, setError] = useState<string | null>(null)
@@ -109,8 +114,15 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
   const current = exercises && index < exercises.length ? exercises[index] : null
 
   const play = useCallback(() => {
-    if (current) speak(current.kind === 'dictation' ? current.target : current.word, current.audio_url)
-  }, [current])
+    if (!current) return
+    if (current.kind === 'dictation') {
+      const chosen = scale ?? current.suggested_scale
+      const speed = current.speeds.find((s) => s.scale === chosen) ?? current.speeds[0]
+      speak(current.target, speed.url)
+    } else {
+      speak(current.word, current.audio_url)
+    }
+  }, [current, scale])
 
   // Try to start each clip automatically; fall back to the play button when
   // the browser wants a fresh gesture.
@@ -134,10 +146,12 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
         correct: res.correct,
         near_miss: res.nearMiss,
         hints: hintCount,
+        speed:
+          current.kind === 'dictation' ? scale ?? current.suggested_scale : undefined,
         answer: answered ?? undefined,
       }).catch(() => undefined)
     },
-    [current, hintCount],
+    [current, hintCount, scale],
   )
 
   const next = useCallback(() => {
@@ -145,6 +159,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
     setPicked(null)
     setAnswer('')
     setHintCount(0)
+    setScale(null)
     setIndex((i) => i + 1)
   }, [])
 
@@ -264,6 +279,30 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
           <svg viewBox="0 0 24 24" fill="currentColor" className="ml-1 h-7 w-7"><path d="M8 5v14l11-7z" /></svg>
         </button>
         <p className="mt-2 text-center text-xs text-slate-400">R to replay</p>
+        {current.kind === 'dictation' && (
+          <div className="mt-2 flex justify-center gap-1.5">
+            {current.speeds.map((sp, i) => {
+              const active = (scale ?? current.suggested_scale) === sp.scale
+              const label = ['🐢 very slow', 'slow', 'normal'][i] ?? String(sp.scale)
+              return (
+                <button
+                  key={sp.scale}
+                  onClick={() => {
+                    setScale(sp.scale)
+                    speak(current.target, sp.url)
+                  }}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition ${
+                    active
+                      ? 'border-sky-500 bg-sky-50 text-sky-700'
+                      : 'border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {current.kind === 'dictation' ? (
           <div className="mt-6">

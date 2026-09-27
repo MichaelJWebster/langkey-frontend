@@ -109,7 +109,8 @@ export interface DictationExercise {
   kind: 'dictation'
   item_id: number
   example_id: number
-  audio_url: string
+  speeds: { scale: number; url: string }[]
+  suggested_scale: number
   target: string
   translation: string
 }
@@ -135,6 +136,7 @@ export const postAttempt = (attempt: {
   correct: boolean
   near_miss?: boolean
   hints?: number
+  speed?: number
   answer?: string
 }) => request<{ status: string }>('/api/v1/exercises/attempts', { method: 'POST', body: JSON.stringify(attempt) })
 
