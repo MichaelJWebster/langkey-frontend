@@ -11,7 +11,7 @@ const RATINGS: { rating: Rating; label: string; key: string; classes: string }[]
   { rating: 4, label: 'Easy', key: '4', classes: 'bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200' },
 ]
 
-function SpeakButton({ text, className = '' }: { text: string; className?: string }) {
+function SpeakButton({ text, audioUrl, className = '' }: { text: string; audioUrl?: string; className?: string }) {
   if (!canSpeak()) return null
   return (
     <button
@@ -19,7 +19,7 @@ function SpeakButton({ text, className = '' }: { text: string; className?: strin
       aria-label={`Speak: ${text}`}
       onClick={(e) => {
         e.stopPropagation()
-        speak(text)
+        speak(text, audioUrl)
       }}
       className={`inline-flex items-center justify-center rounded-full p-1.5 text-slate-400 transition hover:bg-sky-50 hover:text-sky-600 ${className}`}
     >
@@ -90,8 +90,7 @@ export default function ReviewSession({ onFinish }: { onFinish: () => void }) {
       } else if (e.key === 's') {
         // Speak the Norwegian side: front for recognition, back once revealed
         // for production.
-        if (current.direction === 'recognition') speak(current.item.source_text)
-        else if (revealed) speak(current.item.source_text)
+        if (current.direction === 'recognition' || revealed) speak(current.item.source_text, current.item.audio_url)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -160,7 +159,7 @@ export default function ReviewSession({ onFinish }: { onFinish: () => void }) {
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
         <div className="flex items-center justify-center gap-2">
           <p className="text-3xl font-semibold tracking-tight">{front}</p>
-          {isRecognition && <SpeakButton text={current.item.source_text} />}
+          {isRecognition && <SpeakButton text={current.item.source_text} audioUrl={current.item.audio_url} />}
         </div>
         {current.item.pos && (
           <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">{current.item.pos}</p>
@@ -170,12 +169,12 @@ export default function ReviewSession({ onFinish }: { onFinish: () => void }) {
           <div className="mt-6 border-t border-slate-100 pt-6">
             <div className="flex items-center justify-center gap-2">
               <p className="text-2xl text-slate-800">{back}</p>
-              {!isRecognition && <SpeakButton text={current.item.source_text} />}
+              {!isRecognition && <SpeakButton text={current.item.source_text} audioUrl={current.item.audio_url} />}
             </div>
             <ul className="mt-5 space-y-3 text-left">
               {current.item.examples.map((ex) => (
                 <li key={ex.sentence} className="flex items-start gap-1.5">
-                  <SpeakButton text={ex.sentence} className="mt-0.5 shrink-0" />
+                  <SpeakButton text={ex.sentence} audioUrl={ex.audio_url} className="mt-0.5 shrink-0" />
                   <div>
                     <p className="text-slate-700">{ex.sentence}</p>
                     <p className="text-sm text-slate-400">{ex.translation}</p>

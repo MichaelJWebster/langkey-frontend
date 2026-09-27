@@ -24,9 +24,16 @@ export function canSpeak(): boolean {
   return typeof window !== 'undefined' && 'speechSynthesis' in window
 }
 
+// Audio URLs that 404ed (clip not generated yet) — fall back to TTS for these.
+const missingAudio = new Set<string>()
+
 export function speak(text: string, audioUrl?: string | null): void {
-  if (audioUrl) {
-    void new Audio(audioUrl).play()
+  if (audioUrl && !missingAudio.has(audioUrl)) {
+    const player = new Audio(audioUrl)
+    player.play().catch(() => {
+      missingAudio.add(audioUrl)
+      speak(text)
+    })
     return
   }
   if (!canSpeak()) return

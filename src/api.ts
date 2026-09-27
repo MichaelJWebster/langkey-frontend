@@ -35,7 +35,7 @@ export async function login(email: string, password: string): Promise<void> {
 export interface Example {
   sentence: string
   translation: string
-  audio_key: string | null
+  audio_url: string
 }
 
 export interface Item {
@@ -45,7 +45,7 @@ export interface Item {
   translation: string
   pos: string | null
   cefr_level: string
-  audio_key: string | null
+  audio_url: string
   examples: Example[]
 }
 
