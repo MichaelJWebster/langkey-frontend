@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchProgress, fetchTopics, getToken, type Progress, type Topic } from './api'
+import Glossary from './Glossary'
 import ReviewSession from './ReviewSession'
 
 const FOCUS_KEY = 'langkey.focus'
@@ -18,6 +19,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [focus, setFocus] = useState<string | null>(getStoredFocus)
   const [error, setError] = useState<string | null>(null)
   const [inSession, setInSession] = useState(false)
+  const [inGlossary, setInGlossary] = useState(false)
 
   const refresh = useCallback(() => {
     Promise.all([fetchProgress(), fetchTopics()])
@@ -42,6 +44,10 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     } catch {
       // localStorage unavailable — focus just won't persist.
     }
+  }
+
+  if (inGlossary) {
+    return <Glossary onBack={() => setInGlossary(false)} />
   }
 
   if (inSession) {
@@ -117,7 +123,10 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         )}
       </div>
 
-      <div className="mt-4 text-center">
+      <div className="mt-4 flex items-center justify-center gap-6 text-center">
+        <button onClick={() => setInGlossary(true)} className="text-sm font-medium text-sky-600 transition hover:text-sky-800">
+          Glossary
+        </button>
         <button onClick={onLogout} className="text-sm font-medium text-slate-400 transition hover:text-slate-600">
           Sign out
         </button>

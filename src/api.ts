@@ -91,6 +91,20 @@ export const fetchQueue = (focus?: string | null) =>
 export const fetchProgress = () => request<Progress>('/api/v1/progress')
 export const fetchTopics = () => request<Topic[]>('/api/v1/topics')
 
+export interface GlossaryEntry {
+  word: string
+  translation: string
+  pos: string | null
+  cefr_level: string
+  topic_label: string | null
+  first_seen_at: string
+  via: 'card' | 'example'
+  status: 'established' | 'learning' | 'seen'
+  audio_url: string
+}
+
+export const fetchGlossary = () => request<GlossaryEntry[]>('/api/v1/glossary')
+
 export const submitReview = (cardId: string, rating: 1 | 2 | 3 | 4) =>
   request<ReviewResult>('/api/v1/reviews', {
     method: 'POST',
