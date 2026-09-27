@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchQueue, submitReview, type Card } from './api'
+import { canSpeak, speak } from './speech'
 
 type Rating = 1 | 2 | 3 | 4
 
@@ -9,6 +10,27 @@ const RATINGS: { rating: Rating; label: string; key: string; classes: string }[]
   { rating: 3, label: 'Good', key: '3', classes: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200' },
   { rating: 4, label: 'Easy', key: '4', classes: 'bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200' },
 ]
+
+function SpeakButton({ text, className = '' }: { text: string; className?: string }) {
+  if (!canSpeak()) return null
+  return (
+    <button
+      type="button"
+      aria-label={`Speak: ${text}`}
+      onClick={(e) => {
+        e.stopPropagation()
+        speak(text)
+      }}
+      className={`inline-flex items-center justify-center rounded-full p-1.5 text-slate-400 transition hover:bg-sky-50 hover:text-sky-600 ${className}`}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+        <path d="M11 5 6 9H2v6h4l5 4V5z" />
+        <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+        <path d="M18.6 5.4a9 9 0 0 1 0 13.2" />
+      </svg>
+    </button>
+  )
+}
 
 export default function ReviewSession({ onFinish }: { onFinish: () => void }) {
   const [cards, setCards] = useState<Card[] | null>(null)
@@ -65,6 +87,11 @@ export default function ReviewSession({ onFinish }: { onFinish: () => void }) {
         setRevealed(true)
       } else if (revealed && ['1', '2', '3', '4'].includes(e.key)) {
         rate(Number(e.key) as Rating)
+      } else if (e.key === 's') {
+        // Speak the Norwegian side: front for recognition, back once revealed
+        // for production.
+        if (current.direction === 'recognition') speak(current.item.source_text)
+        else if (revealed) speak(current.item.source_text)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -131,16 +158,31 @@ export default function ReviewSession({ onFinish }: { onFinish: () => void }) {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-        <p className="text-3xl font-semibold tracking-tight">{front}</p>
+        <div className="flex items-center justify-center gap-2">
+          <p className="text-3xl font-semibold tracking-tight">{front}</p>
+          {isRecognition && <SpeakButton text={current.item.source_text} />}
+        </div>
         {current.item.pos && (
           <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">{current.item.pos}</p>
         )}
 
         {revealed ? (
           <div className="mt-6 border-t border-slate-100 pt-6">
-            <p className="text-2xl text-slate-800">{back}</p>
-            <p className="mt-4 text-slate-600">{current.item.example_sentence}</p>
-            <p className="mt-1 text-sm text-slate-400">{current.item.example_translation}</p>
+            <div className="flex items-center justify-center gap-2">
+              <p className="text-2xl text-slate-800">{back}</p>
+              {!isRecognition && <SpeakButton text={current.item.source_text} />}
+            </div>
+            <ul className="mt-5 space-y-3 text-left">
+              {current.item.examples.map((ex) => (
+                <li key={ex.sentence} className="flex items-start gap-1.5">
+                  <SpeakButton text={ex.sentence} className="mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-slate-700">{ex.sentence}</p>
+                    <p className="text-sm text-slate-400">{ex.translation}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : (
           <button

@@ -32,6 +32,12 @@ export async function login(email: string, password: string): Promise<void> {
   localStorage.setItem(TOKEN_KEY, access_token)
 }
 
+export interface Example {
+  sentence: string
+  translation: string
+  audio_key: string | null
+}
+
 export interface Item {
   id: number
   item_type: string
@@ -39,8 +45,8 @@ export interface Item {
   translation: string
   pos: string | null
   cefr_level: string
-  example_sentence: string
-  example_translation: string
+  audio_key: string | null
+  examples: Example[]
 }
 
 export interface Card {
