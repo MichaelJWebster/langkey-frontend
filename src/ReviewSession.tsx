@@ -138,6 +138,8 @@ export default function ReviewSession({ focus, onFinish }: { focus?: string | nu
         setRevealed(true)
       } else if (revealed && ['1', '2', '3', '4'].includes(e.key)) {
         rate(Number(e.key) as Rating)
+      } else if (e.key === 'Escape') {
+        onFinish()
       } else if (e.key === 's') {
         // Speak the Norwegian side: front for recognition, back once revealed
         // for production.
@@ -146,7 +148,7 @@ export default function ReviewSession({ focus, onFinish }: { focus?: string | nu
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [current, revealed, rate])
+  }, [current, revealed, rate, onFinish])
 
   if (error) {
     return (
@@ -203,6 +205,14 @@ export default function ReviewSession({ focus, onFinish }: { focus?: string | nu
     <div>
       <div className="relative mb-4 flex items-center justify-between text-xs text-slate-400">
         <span className="flex items-center gap-2">
+          <button
+            onClick={onFinish}
+            aria-label="Back to dashboard"
+            title="Back to dashboard (Esc)"
+            className="rounded-full px-1.5 py-0.5 font-medium transition hover:bg-slate-100 hover:text-slate-600"
+          >
+            ← Back
+          </button>
           {index + 1} / {cards.length}
           <RatingLegend />
         </span>
