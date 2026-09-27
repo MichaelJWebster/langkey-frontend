@@ -32,6 +32,50 @@ function SpeakButton({ text, audioUrl, className = '' }: { text: string; audioUr
   )
 }
 
+const RATING_GUIDE: { label: string; color: string; text: string }[] = [
+  { label: 'Again', color: 'text-red-700', text: "Couldn't recall it. Comes back in about a minute, and the schedule restarts short." },
+  { label: 'Hard', color: 'text-amber-700', text: 'Recalled, but slowly or shakily. The next gap grows only a little.' },
+  { label: 'Good', color: 'text-emerald-700', text: 'Recalled with normal effort. The standard choice — the gap roughly doubles or triples.' },
+  { label: 'Easy', color: 'text-sky-700', text: 'Instant and effortless. Jumps much further ahead — use sparingly.' },
+]
+
+function RatingLegend() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="How do the rating buttons work?"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-semibold transition ${
+          open ? 'border-sky-400 bg-sky-50 text-sky-600' : 'border-slate-300 text-slate-400 hover:border-sky-400 hover:text-sky-600'
+        }`}
+      >
+        i
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-7 z-10 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-lg">
+          <p className="mb-2 text-xs font-medium text-slate-500">
+            Decide your answer before revealing, then grade honestly — each button tells the
+            scheduler when to show the card next.
+          </p>
+          <ul className="space-y-1.5 text-xs text-slate-600">
+            {RATING_GUIDE.map((r) => (
+              <li key={r.label}>
+                <span className={`font-semibold ${r.color}`}>{r.label}</span> — {r.text}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-slate-400">
+            Keys: space reveals · 1–4 grade · s speaks the Norwegian.
+          </p>
+        </div>
+      )}
+    </>
+  )
+}
+
 export default function ReviewSession({ onFinish }: { onFinish: () => void }) {
   const [cards, setCards] = useState<Card[] | null>(null)
   const [index, setIndex] = useState(0)
@@ -142,9 +186,10 @@ export default function ReviewSession({ onFinish }: { onFinish: () => void }) {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between text-xs text-slate-400">
-        <span>
+      <div className="relative mb-4 flex items-center justify-between text-xs text-slate-400">
+        <span className="flex items-center gap-2">
           {index + 1} / {cards.length}
+          <RatingLegend />
         </span>
         <span className="flex items-center gap-2">
           {current.is_new && (
