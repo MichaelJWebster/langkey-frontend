@@ -132,6 +132,8 @@ export default function ReviewSession({ focus, onFinish }: { focus?: string | nu
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Never react to browser shortcuts (⌘O opens a file dialog, etc.).
+      if (e.metaKey || e.ctrlKey || e.altKey) return
       if (!current) return
       if (!revealed && (e.key === ' ' || e.key === 'Enter')) {
         e.preventDefault()

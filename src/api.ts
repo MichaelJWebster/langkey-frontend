@@ -134,6 +134,7 @@ export const postAttempt = (attempt: {
   example_id?: number
   correct: boolean
   near_miss?: boolean
+  hints?: number
   answer?: string
 }) => request<{ status: string }>('/api/v1/exercises/attempts', { method: 'POST', body: JSON.stringify(attempt) })
 

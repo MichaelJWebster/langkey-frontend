@@ -75,7 +75,10 @@ function CharLegend() {
             Or hold a / o down for the accent picker, or click the buttons here. Writing a for å
             counts as <i>nearly right</i> — never wrong.
           </p>
-          <p className="mt-2 text-xs text-slate-400">Keys: Enter check/next · R replay · Esc exit.</p>
+          <p className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-700">
+            ⚠️ Not ⌘ Command — ⌘O opens the browser's file dialog!
+          </p>
+          <p className="mt-2 text-xs text-slate-400">Keys: Enter check/next · R replay · H hint · Esc exit.</p>
         </div>
       )}
     </span>
@@ -91,6 +94,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
   const [index, setIndex] = useState(0)
   const [answer, setAnswer] = useState('')
   const [picked, setPicked] = useState<number | null>(null)
+  const [hintCount, setHintCount] = useState(0)
   const [result, setResult] = useState<Result | null>(null)
   const [score, setScore] = useState({ right: 0, near: 0, total: 0 })
   const [error, setError] = useState<string | null>(null)
@@ -129,29 +133,46 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
         example_id: current.kind === 'dictation' ? current.example_id : undefined,
         correct: res.correct,
         near_miss: res.nearMiss,
+        hints: hintCount,
         answer: answered ?? undefined,
       }).catch(() => undefined)
     },
-    [current],
+    [current, hintCount],
   )
 
   const next = useCallback(() => {
     setResult(null)
     setPicked(null)
     setAnswer('')
+    setHintCount(0)
     setIndex((i) => i + 1)
   }, [])
 
+  const targetWords =
+    current && current.kind === 'dictation' ? clean(current.target).split(' ') : []
+  const fullyRevealed = hintCount >= targetWords.length && targetWords.length > 0
+
+  const giveHint = useCallback(() => {
+    if (!current || current.kind !== 'dictation' || result) return
+    setHintCount((h) => Math.min(h + 1, targetWords.length))
+  }, [current, result, targetWords.length])
+
   const checkDictationAnswer = useCallback(() => {
     if (!current || current.kind !== 'dictation') return
-    finishExercise(checkDictation(current.target, answer), answer)
-  }, [current, answer, finishExercise])
+    const res = checkDictation(current.target, answer)
+    // Seeing the whole sentence via hints can't count as a correct listen.
+    if (fullyRevealed) res.correct = false
+    finishExercise(res, answer)
+  }, [current, answer, finishExercise, fullyRevealed])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Never react to browser shortcuts (⌘O opens a file dialog, etc.).
+      if (e.metaKey || e.ctrlKey || e.altKey) return
       if (e.key === 'Escape') return onFinish()
       if (!current) return
       if (e.key === 'r' && !(e.target instanceof HTMLInputElement)) return play()
+      if (e.key === 'h' && !(e.target instanceof HTMLInputElement)) return giveHint()
       if (e.key === 'Enter') {
         e.preventDefault()
         if (result) next()
@@ -165,7 +186,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [current, result, answer, next, play, checkDictationAnswer, finishExercise, onFinish])
+  }, [current, result, answer, next, play, giveHint, checkDictationAnswer, finishExercise, onFinish])
 
   function insertChar(ch: string) {
     const el = inputRef.current
@@ -264,12 +285,23 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                 <p className="mt-3 text-sm font-medium">
                   {result.correct
                     ? result.nearMiss ? '👍 Nearly right — mind the special characters' : '✅ Correct!'
-                    : '❌ Not quite — your answer: ' + (answer || '(empty)')}
+                    : hintCount >= result.marks!.length
+                      ? '💡 Revealed — it will come around again'
+                      : '❌ Not quite — your answer: ' + (answer || '(empty)')}
                 </p>
                 <NextButton onClick={next} />
               </div>
             ) : (
               <>
+                {hintCount > 0 && (
+                  <p className="mb-2 text-center text-lg tracking-wide text-slate-500">
+                    {targetWords.map((w, i) => (
+                      <span key={i} className={i < hintCount ? 'mr-1.5' : 'mr-1.5 text-slate-300'}>
+                        {i < hintCount ? w : '•'.repeat(Math.max(w.length, 2))}
+                      </span>
+                    ))}
+                  </p>
+                )}
                 <input
                   ref={inputRef}
                   autoFocus
@@ -295,13 +327,23 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                       </button>
                     ))}
                   </div>
-                  <button
-                    onClick={checkDictationAnswer}
-                    disabled={!answer.trim()}
-                    className="rounded-lg bg-slate-900 px-5 py-1.5 font-medium text-white transition hover:bg-slate-700 disabled:opacity-40"
-                  >
-                    Check <span className="ml-1 text-xs text-slate-400">↵</span>
-                  </button>
+                  <span className="flex gap-2">
+                    <button
+                      onClick={giveHint}
+                      disabled={fullyRevealed}
+                      className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-1.5 font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-40"
+                    >
+                      {fullyRevealed ? 'Revealed' : hintCount > 0 ? 'More' : 'Hint'}
+                      <span className="ml-1 text-xs opacity-60">H</span>
+                    </button>
+                    <button
+                      onClick={checkDictationAnswer}
+                      disabled={!answer.trim() && !fullyRevealed}
+                      className="rounded-lg bg-slate-900 px-5 py-1.5 font-medium text-white transition hover:bg-slate-700 disabled:opacity-40"
+                    >
+                      Check <span className="ml-1 text-xs text-slate-400">↵</span>
+                    </button>
+                  </span>
                 </div>
               </>
             )}
