@@ -7,7 +7,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 text-slate-900 antialiased">
-      <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-12">
+      <div className="mx-auto flex min-h-screen w-full flex-col justify-center px-6 py-12 md:w-2/3 md:px-0">
         <header className="mb-10 text-center">
           <div className="mb-3 text-5xl">🗝️</div>
           <h1 className="text-3xl font-semibold tracking-tight">LangKey</h1>
@@ -16,7 +16,9 @@ export default function App() {
         {authed ? (
           <Dashboard onLogout={() => { clearToken(); setAuthed(false) }} />
         ) : (
-          <LoginCard onLogin={() => setAuthed(true)} />
+          <div className="mx-auto w-full max-w-md">
+            <LoginCard onLogin={() => setAuthed(true)} />
+          </div>
         )}
       </div>
     </div>

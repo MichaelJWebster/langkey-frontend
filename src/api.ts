@@ -145,3 +145,42 @@ export const submitReview = (cardId: string, rating: 1 | 2 | 3 | 4) =>
     method: 'POST',
     body: JSON.stringify({ card_id: cardId, rating }),
   })
+
+export interface TextSummary {
+  slug: string
+  title: string
+  author: string | null
+  kind: string
+  orthography: string
+  license: string | null
+  sentence_count: number
+  position: number
+}
+
+export interface TextSentence {
+  seq: number
+  paragraph: number
+  no: string
+  en: string
+}
+
+export interface TextPage {
+  slug: string
+  title: string
+  author: string | null
+  from_seq: number
+  to_seq: number
+  sentence_count: number
+  sentences: TextSentence[]
+}
+
+export const fetchTexts = () => request<TextSummary[]>('/api/v1/texts')
+
+export const fetchTextPage = (slug: string, fromSeq = 1) =>
+  request<TextPage>(`/api/v1/texts/${slug}?from_seq=${fromSeq}`)
+
+export const saveReadingPosition = (slug: string, seq: number) =>
+  request<{ seq: number }>(`/api/v1/texts/${slug}/position`, {
+    method: 'PUT',
+    body: JSON.stringify({ seq }),
+  })
