@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchListening, postAttempt, type ListeningExercise } from './api'
-import { speak } from './speech'
+import { speak, stopSpeech } from './speech'
 
 // --- Norwegian text checking (diacritic-tolerant) ---------------------------
 
@@ -128,6 +128,9 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
   // the browser wants a fresh gesture.
   useEffect(() => {
     if (current) play()
+    // Stop any clip still playing when the exercise changes or the session
+    // closes, so audio never overlaps the next one.
+    return stopSpeech
   }, [current, play])
 
   const finishExercise = useCallback(

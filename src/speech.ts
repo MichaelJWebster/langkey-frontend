@@ -27,10 +27,28 @@ export function canSpeak(): boolean {
 // Audio URLs that 404ed (clip not generated yet) — fall back to TTS for these.
 const missingAudio = new Set<string>()
 
+// Only one voice at a time: whatever is playing gets stopped before a new
+// clip or utterance starts (React StrictMode double-fires the autoplay
+// effect, and replay/speed clicks can land mid-clip).
+let currentPlayer: HTMLAudioElement | null = null
+
+export function stopSpeech(): void {
+  if (currentPlayer) {
+    currentPlayer.pause()
+    currentPlayer = null
+  }
+  if (canSpeak()) window.speechSynthesis.cancel()
+}
+
 export function speak(text: string, audioUrl?: string | null): void {
+  stopSpeech()
   if (audioUrl && !missingAudio.has(audioUrl)) {
     const player = new Audio(audioUrl)
+    currentPlayer = player
     player.play().catch(() => {
+      // A rejection from being stopped by a newer speak() isn't a missing clip.
+      if (currentPlayer !== player) return
+      currentPlayer = null
       missingAudio.add(audioUrl)
       speak(text)
     })
@@ -41,7 +59,6 @@ export function speak(text: string, audioUrl?: string | null): void {
   // without an explicit voice it falls back to the default voice (often an
   // English one) regardless of utterance.lang.
   if (!norwegianVoice) norwegianVoice = pickVoice()
-  window.speechSynthesis.cancel()
   const utterance = new SpeechSynthesisUtterance(text)
   utterance.lang = 'nb-NO'
   if (norwegianVoice) utterance.voice = norwegianVoice
