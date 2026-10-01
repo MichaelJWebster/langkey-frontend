@@ -1,10 +1,29 @@
-// Cloudflare Workers config: static SPA hosting (free plan).
-// The backend container + /api/* routing are added when Workers Paid is enabled.
+// Cloudflare Workers config: SPA static assets + FastAPI backend container.
+// /api/* is routed to the container (see worker/index.ts); everything else is
+// served from dist/. The backend image builds from the sibling backend repo.
 {
   "name": "langkey",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-09-01",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "containers": [
+    {
+      "class_name": "Backend",
+      "image": "../langkey-backend/Dockerfile",
+      "max_instances": 1,
+      "instance_type": "basic"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "BACKEND", "class_name": "Backend" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Backend"] }],
+  "vars": {
+    "LANGKEY_S3_ENDPOINT_URL": "https://fd76d100a7d1d21b08a1ec0df97c2fed.r2.cloudflarestorage.com"
   }
 }
