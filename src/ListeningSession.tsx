@@ -93,12 +93,22 @@ function CharLegend() {
 
 type Result = { correct: boolean; nearMiss: boolean; marks?: WordMark[] }
 
+// One word of hint feedback: typed+correct = a fixed mistake (struck + fix),
+// typed alone = an extra word to drop (struck), correct alone = already right.
+type HintMark = { typed?: string; correct?: string }
+type HintFeedback =
+  | { kind: 'next'; words: string[]; added: string }
+  | { kind: 'fix'; marks: HintMark[] }
+  | { kind: 'complete' }
+
 export default function ListeningSession({ onFinish }: { onFinish: () => void }) {
   const [exercises, setExercises] = useState<ListeningExercise[] | null>(null)
   const [index, setIndex] = useState(0)
   const [answer, setAnswer] = useState('')
   const [picked, setPicked] = useState<number | null>(null)
-  const [hintCount, setHintCount] = useState(0)
+  const [hintWords, setHintWords] = useState(0) // words supplied by hints
+  const [hintPresses, setHintPresses] = useState(0) // logged on the attempt
+  const [hintFeedback, setHintFeedback] = useState<HintFeedback | null>(null)
   const [scale, setScale] = useState<number | null>(null)
   const [result, setResult] = useState<Result | null>(null)
   const [score, setScore] = useState({ right: 0, near: 0, total: 0 })
@@ -148,32 +158,70 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
         example_id: current.kind === 'dictation' ? current.example_id : undefined,
         correct: res.correct,
         near_miss: res.nearMiss,
-        hints: hintCount,
+        hints: hintPresses,
         speed:
           current.kind === 'dictation' ? scale ?? current.suggested_scale : undefined,
         answer: answered ?? undefined,
       }).catch(() => undefined)
     },
-    [current, hintCount, scale],
+    [current, hintPresses, scale],
   )
 
   const next = useCallback(() => {
     setResult(null)
     setPicked(null)
     setAnswer('')
-    setHintCount(0)
+    setHintWords(0)
+    setHintPresses(0)
+    setHintFeedback(null)
     setScale(null)
     setIndex((i) => i + 1)
   }, [])
 
   const targetWords =
     current && current.kind === 'dictation' ? clean(current.target).split(' ') : []
-  const fullyRevealed = hintCount >= targetWords.length && targetWords.length > 0
+  const fullyRevealed = hintWords >= targetWords.length && targetWords.length > 0
 
+  // A hint coaches the current attempt: if what's typed is right so far, it
+  // appends the next word; if not, it corrects the attempt (mistakes shown
+  // struck-through in red with the fix beside them) so the next hint advances.
   const giveHint = useCallback(() => {
     if (!current || current.kind !== 'dictation' || result) return
-    setHintCount((h) => Math.min(h + 1, targetWords.length))
-  }, [current, result, targetWords.length])
+    const typed = clean(answer).split(' ').filter(Boolean)
+    const marks: HintMark[] = []
+    let wrong = 0
+    typed.forEach((w, i) => {
+      const t = targetWords[i]
+      if (t === undefined) {
+        marks.push({ typed: w }) // extra word beyond the sentence
+        wrong += 1
+      } else if (w === t || fold(w) === fold(t)) {
+        marks.push({ correct: w }) // folded å/ø/æ counts as right, as in checking
+      } else {
+        marks.push({ typed: w, correct: t })
+        wrong += 1
+      }
+    })
+    setHintPresses((p) => p + 1)
+    if (wrong > 0) {
+      const corrected = marks.flatMap((m) => (m.correct !== undefined ? [m.correct] : []))
+      setAnswer(corrected.join(' '))
+      setHintFeedback({ kind: 'fix', marks })
+      setHintWords((h) => h + wrong)
+    } else if (typed.length >= targetWords.length) {
+      setHintFeedback({ kind: 'complete' })
+    } else {
+      const added = targetWords[typed.length]
+      setAnswer([...typed, added].join(' '))
+      setHintFeedback({ kind: 'next', words: typed, added })
+      setHintWords((h) => h + 1)
+    }
+    requestAnimationFrame(() => {
+      const el = inputRef.current
+      el?.focus()
+      el?.setSelectionRange(el.value.length, el.value.length)
+    })
+  }, [current, result, answer, targetWords])
 
   const checkDictationAnswer = useCallback(() => {
     if (!current || current.kind !== 'dictation') return
@@ -327,7 +375,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                 <p className="mt-3 text-sm font-medium">
                   {result.correct
                     ? result.nearMiss ? '👍 Nearly right — mind the special characters' : '✅ Correct!'
-                    : hintCount >= result.marks!.length
+                    : fullyRevealed
                       ? '💡 Revealed — it will come around again'
                       : '❌ Not quite — your answer: ' + (answer || '(empty)')}
                 </p>
@@ -335,13 +383,34 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
               </div>
             ) : (
               <>
-                {hintCount > 0 && (
-                  <p className="mb-2 text-center text-lg tracking-wide text-slate-500">
-                    {targetWords.map((w, i) => (
-                      <span key={i} className={i < hintCount ? 'mr-1.5' : 'mr-1.5 text-slate-300'}>
-                        {i < hintCount ? w : '•'.repeat(Math.max(w.length, 2))}
+                {hintFeedback && (
+                  <p className="mb-2 text-center text-lg tracking-wide">
+                    {hintFeedback.kind === 'fix' ? (
+                      hintFeedback.marks.map((m, i) => (
+                        <span key={i} className="mr-1.5 whitespace-nowrap">
+                          {m.typed !== undefined && (
+                            <s className="text-red-600">{m.typed}</s>
+                          )}
+                          {m.typed !== undefined && m.correct !== undefined && ' '}
+                          {m.correct !== undefined && (
+                            <span className={m.typed !== undefined ? 'font-medium' : 'text-slate-400'}>
+                              {m.correct}
+                            </span>
+                          )}
+                        </span>
+                      ))
+                    ) : hintFeedback.kind === 'next' ? (
+                      <>
+                        {hintFeedback.words.map((w, i) => (
+                          <span key={i} className="mr-1.5 text-slate-400">{w}</span>
+                        ))}
+                        <span className="font-medium text-sky-600">{hintFeedback.added}</span>
+                      </>
+                    ) : (
+                      <span className="text-sm text-emerald-700">
+                        Looks complete — press Check ↵
                       </span>
-                    ))}
+                    )}
                   </p>
                 )}
                 <input
@@ -372,10 +441,9 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                   <span className="flex gap-2">
                     <button
                       onClick={giveHint}
-                      disabled={fullyRevealed}
-                      className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-1.5 font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-40"
+                      className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-1.5 font-medium text-amber-700 transition hover:bg-amber-100"
                     >
-                      {fullyRevealed ? 'Revealed' : hintCount > 0 ? 'More' : 'Hint'}
+                      {hintPresses > 0 ? 'More' : 'Hint'}
                       <span className="ml-1 text-xs opacity-60">H</span>
                     </button>
                     <button
