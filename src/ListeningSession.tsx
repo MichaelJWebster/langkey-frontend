@@ -111,7 +111,9 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
   const [hintFeedback, setHintFeedback] = useState<HintFeedback | null>(null)
   const [scale, setScale] = useState<number | null>(null)
   const [result, setResult] = useState<Result | null>(null)
-  const [score, setScore] = useState({ right: 0, near: 0, total: 0 })
+  // points = sum of graded marks (hints reduce a correct answer's mark);
+  // helped = correct answers that leaned on hints.
+  const [score, setScore] = useState({ right: 0, helped: 0, near: 0, total: 0, points: 0 })
   const [error, setError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -144,13 +146,15 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
   }, [current, play])
 
   const finishExercise = useCallback(
-    (res: Result, answered: string | null) => {
+    (res: Result, answered: string | null, mark: number) => {
       if (!current) return
       setResult(res)
       setScore((s) => ({
-        right: s.right + (res.correct ? 1 : 0),
+        right: s.right + (res.correct && mark >= 1 ? 1 : 0),
+        helped: s.helped + (res.correct && mark < 1 ? 1 : 0),
         near: s.near + (res.nearMiss ? 1 : 0),
         total: s.total + 1,
+        points: s.points + mark,
       }))
       postAttempt({
         exercise_type: current.kind === 'dictation' ? 'dictation' : 'listen_choose',
@@ -159,6 +163,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
         correct: res.correct,
         near_miss: res.nearMiss,
         hints: hintPresses,
+        score: mark,
         speed:
           current.kind === 'dictation' ? scale ?? current.suggested_scale : undefined,
         answer: answered ?? undefined,
@@ -181,6 +186,11 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
   const targetWords =
     current && current.kind === 'dictation' ? clean(current.target).split(' ') : []
   const fullyRevealed = hintWords >= targetWords.length && targetWords.length > 0
+  // Graded mark for a correct dictation: the share of words typed unaided.
+  const hintedWords = Math.min(hintWords, targetWords.length)
+  const dictationMark = targetWords.length
+    ? (targetWords.length - hintedWords) / targetWords.length
+    : 0
 
   // A hint coaches the current attempt: if what's typed is right so far, it
   // appends the next word; if not, it corrects the attempt (mistakes shown
@@ -228,8 +238,8 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
     const res = checkDictation(current.target, answer)
     // Seeing the whole sentence via hints can't count as a correct listen.
     if (fullyRevealed) res.correct = false
-    finishExercise(res, answer)
-  }, [current, answer, finishExercise, fullyRevealed])
+    finishExercise(res, answer, res.correct ? dictationMark : 0)
+  }, [current, answer, finishExercise, fullyRevealed, dictationMark])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -247,7 +257,11 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
       if (current.kind === 'listen_choose' && !result && ['1', '2', '3', '4'].includes(e.key)) {
         const i = Number(e.key) - 1
         setPicked(i)
-        finishExercise({ correct: i === current.correct_index, nearMiss: false }, current.options[i])
+        finishExercise(
+          { correct: i === current.correct_index, nearMiss: false },
+          current.options[i],
+          i === current.correct_index ? 1 : 0,
+        )
       }
     }
     window.addEventListener('keydown', onKey)
@@ -288,8 +302,14 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
         <div className="text-4xl">🎧</div>
         <p className="mt-3 text-xl font-medium">
           {score.right} / {score.total} correct
+          {score.helped > 0 && <span className="text-sm text-slate-500"> (+{score.helped} with hints)</span>}
           {score.near > 0 && <span className="text-sm text-amber-600"> ({score.near} nearly — watch æ ø å)</span>}
         </p>
+        {score.total > 0 && (
+          <p className="mt-1 text-sm text-slate-500">
+            Session mark: {Math.round((score.points / score.total) * 100)}%
+          </p>
+        )}
         <button
           onClick={onFinish}
           className="mt-6 rounded-lg bg-sky-600 px-6 py-2.5 font-medium text-white transition hover:bg-sky-700"
@@ -374,7 +394,10 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                 <p className="mt-1 text-sm text-slate-400">{current.translation}</p>
                 <p className="mt-3 text-sm font-medium">
                   {result.correct
-                    ? result.nearMiss ? '👍 Nearly right — mind the special characters' : '✅ Correct!'
+                    ? hintedWords > 0
+                      ? `🟡 ${Math.round(dictationMark * 100)}% — right with ${hintedWords} hinted ` +
+                        (hintedWords === 1 ? 'word' : 'words')
+                      : result.nearMiss ? '👍 Nearly right — mind the special characters' : '✅ Correct!'
                     : fullyRevealed
                       ? '💡 Revealed — it will come around again'
                       : '❌ Not quite — your answer: ' + (answer || '(empty)')}
@@ -482,7 +505,11 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                     disabled={!!result}
                     onClick={() => {
                       setPicked(i)
-                      finishExercise({ correct: i === current.correct_index, nearMiss: false }, opt)
+                      finishExercise(
+                        { correct: i === current.correct_index, nearMiss: false },
+                        opt,
+                        i === current.correct_index ? 1 : 0,
+                      )
                     }}
                     className={`rounded-lg border px-4 py-2.5 text-left transition ${style}`}
                   >
