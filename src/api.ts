@@ -32,10 +32,17 @@ export async function login(email: string, password: string): Promise<void> {
   localStorage.setItem(TOKEN_KEY, access_token)
 }
 
+export interface Gloss {
+  word: string
+  translation: string
+}
+
 export interface Example {
   sentence: string
   translation: string
   audio_url: string
+  // Deck words in the sentence not yet established (headword excluded).
+  gloss: Gloss[]
 }
 
 export interface Item {

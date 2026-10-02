@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchQueue, submitReview, type Card, type QueueOptions } from './api'
+import { fetchQueue, submitReview, type Card, type Gloss, type QueueOptions } from './api'
 import { canSpeak, speak } from './speech'
 
 type Rating = 1 | 2 | 3 | 4
@@ -76,6 +76,19 @@ function RatingLegend() {
   )
 }
 
+function GlossList({ gloss }: { gloss: Gloss[] }) {
+  return (
+    <ul className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+      {gloss.map((g) => (
+        <li key={g.word} className="flex items-baseline gap-2">
+          <span className="font-medium text-slate-200">{g.word}</span>
+          <span className="min-w-0 flex-1 truncate text-slate-500">{g.translation}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export default function ReviewSession({
   options = {},
   onFinish,
@@ -86,6 +99,7 @@ export default function ReviewSession({
   const [cards, setCards] = useState<Card[] | null>(null)
   const [index, setIndex] = useState(0)
   const [revealed, setRevealed] = useState(false)
+  const [glossOpen, setGlossOpen] = useState(false) // phone glossary panel
   const [done, setDone] = useState(0)
   const [error, setError] = useState<string | null>(null)
   // Cards rated Again/Hard come due again within the sitting; requeue them locally.
@@ -109,6 +123,7 @@ export default function ReviewSession({
 
   const advance = useCallback(() => {
     setRevealed(false)
+    setGlossOpen(false)
     setIndex((i) => i + 1)
   }, [])
 
@@ -216,6 +231,18 @@ export default function ReviewSession({
   const front = isRecognition ? current.item.source_text : current.item.translation
   const back = isRecognition ? current.item.translation : current.item.source_text
 
+  // One glossary for the whole card: the examples often share words.
+  const glossary: Gloss[] = []
+  const seen = new Set<string>()
+  for (const ex of current.item.examples) {
+    for (const g of ex.gloss) {
+      if (!seen.has(g.word)) {
+        seen.add(g.word)
+        glossary.push(g)
+      }
+    }
+  }
+
   return (
     <div>
       <div className="relative mb-4 flex items-center justify-between text-xs text-slate-400">
@@ -267,6 +294,34 @@ export default function ReviewSession({
                 </li>
               ))}
             </ul>
+
+            {glossary.length > 0 && (
+              <>
+                {/* Desktop: always visible under the examples. */}
+                <div className="mt-5 hidden border-t border-white/10 pt-4 text-left md:block">
+                  <p className="mb-2 text-[11px] font-semibold tracking-[.08em] text-slate-500">
+                    WORDS IN THESE EXAMPLES YOU HAVEN'T LEARNED YET
+                  </p>
+                  <GlossList gloss={glossary} />
+                </div>
+
+                {/* Phone: a toggle so the card stays short. */}
+                <div className="mt-4 text-left md:hidden">
+                  <button
+                    onClick={() => setGlossOpen((o) => !o)}
+                    aria-expanded={glossOpen}
+                    className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-teal-300 transition hover:bg-white/10"
+                  >
+                    {glossOpen ? 'Hide' : 'Show'} new words in these examples ({glossary.length})
+                  </button>
+                  {glossOpen && (
+                    <div className="mt-2 rounded-lg border border-white/10 bg-white/5 p-3">
+                      <GlossList gloss={glossary} />
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <button
