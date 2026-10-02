@@ -16,6 +16,32 @@ function fold(s: string): string {
   return s.replaceAll('å', 'a').replaceAll('ø', 'o').replaceAll('æ', 'ae')
 }
 
+function editDistance(a: string, b: string): number {
+  if (!a.length) return b.length
+  if (!b.length) return a.length
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i]
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+    }
+    prev = cur
+  }
+  return prev[b.length]
+}
+
+// Credit for one word of the mark: 1 when right (folded å/ø/æ counts),
+// otherwise spelling similarity to the target — zeroed below half so an
+// unrelated word earns nothing.
+function wordCredit(got: string | undefined, target: string): number {
+  if (!got) return 0
+  const a = fold(got)
+  const b = fold(target)
+  if (a === b) return 1
+  const sim = 1 - editDistance(a, b) / Math.max(a.length, b.length)
+  return sim >= 0.5 ? sim : 0
+}
+
 type WordMark = { word: string; state: 'ok' | 'near' | 'wrong' }
 
 function checkDictation(target: string, answer: string): {
@@ -91,7 +117,7 @@ function CharLegend() {
 
 // --- Session -----------------------------------------------------------------
 
-type Result = { correct: boolean; nearMiss: boolean; marks?: WordMark[] }
+type Result = { correct: boolean; nearMiss: boolean; marks?: WordMark[]; mark?: number }
 
 // One word of hint feedback: typed+correct = a fixed mistake (struck + fix),
 // typed alone = an extra word to drop (struck), correct alone = already right.
@@ -148,7 +174,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
   const finishExercise = useCallback(
     (res: Result, answered: string | null, mark: number) => {
       if (!current) return
-      setResult(res)
+      setResult({ ...res, mark })
       setScore((s) => ({
         right: s.right + (res.correct && mark >= 1 ? 1 : 0),
         helped: s.helped + (res.correct && mark < 1 ? 1 : 0),
@@ -186,11 +212,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
   const targetWords =
     current && current.kind === 'dictation' ? clean(current.target).split(' ') : []
   const fullyRevealed = hintWords >= targetWords.length && targetWords.length > 0
-  // Graded mark for a correct dictation: the share of words typed unaided.
   const hintedWords = Math.min(hintWords, targetWords.length)
-  const dictationMark = targetWords.length
-    ? (targetWords.length - hintedWords) / targetWords.length
-    : 0
 
   // A hint coaches the current attempt: if what's typed is right so far, it
   // appends the next word; if not, it corrects the attempt (mistakes shown
@@ -238,8 +260,14 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
     const res = checkDictation(current.target, answer)
     // Seeing the whole sentence via hints can't count as a correct listen.
     if (fullyRevealed) res.correct = false
-    finishExercise(res, answer, res.correct ? dictationMark : 0)
-  }, [current, answer, finishExercise, fullyRevealed, dictationMark])
+    // Graded mark: per-word credit (spelling similarity for wrong words),
+    // minus the words hints supplied, over the longer of the two sentences.
+    const answerWords = clean(answer).split(' ').filter(Boolean)
+    const credit = targetWords.reduce((sum, t, i) => sum + wordCredit(answerWords[i], t), 0)
+    const denom = Math.max(targetWords.length, answerWords.length, 1)
+    const mark = Math.max(0, credit - hintedWords) / denom
+    finishExercise(res, answer, mark)
+  }, [current, answer, finishExercise, fullyRevealed, targetWords, hintedWords])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -395,12 +423,15 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                 <p className="mt-3 text-sm font-medium">
                   {result.correct
                     ? hintedWords > 0
-                      ? `🟡 ${Math.round(dictationMark * 100)}% — right with ${hintedWords} hinted ` +
+                      ? `🟡 ${Math.round((result.mark ?? 0) * 100)}% — right with ${hintedWords} hinted ` +
                         (hintedWords === 1 ? 'word' : 'words')
                       : result.nearMiss ? '👍 Nearly right — mind the special characters' : '✅ Correct!'
                     : fullyRevealed
                       ? '💡 Revealed — it will come around again'
-                      : '❌ Not quite — your answer: ' + (answer || '(empty)')}
+                      : (result.mark ?? 0) > 0
+                        ? `❌ Not quite (${Math.round(result.mark! * 100)}% credit) — your answer: ` +
+                          (answer || '(empty)')
+                        : '❌ Not quite — your answer: ' + (answer || '(empty)')}
                 </p>
                 <NextButton onClick={next} />
               </div>
