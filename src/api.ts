@@ -84,6 +84,21 @@ export interface Topic {
   label: string
   total: number
   remaining: number
+  established: number // learning count = total - remaining - established
+}
+
+export interface CardBreakdown {
+  unseen: number
+  learning: number
+  relearning: number
+  established: number
+}
+
+export interface SkillsBreakdown {
+  vocabulary: CardBreakdown
+  writing: CardBreakdown
+  listening: { clean: number; helped: number; missed: number; total: number }
+  reading: { sentences_read: number; sentences_total: number }
 }
 
 export interface CefrSkill {
@@ -103,11 +118,24 @@ export interface CefrProgress {
   note: string
 }
 
-export const fetchQueue = (focus?: string | null) =>
-  request<Queue>(`/api/v1/reviews/queue${focus ? `?focus=${encodeURIComponent(focus)}` : ''}`)
+export interface QueueOptions {
+  focus?: string | null
+  direction?: 'recognition' | 'production'
+  mode?: 'tricky'
+}
+
+export const fetchQueue = (opts: QueueOptions = {}) => {
+  const params = new URLSearchParams()
+  if (opts.focus) params.set('focus', opts.focus)
+  if (opts.direction) params.set('direction', opts.direction)
+  if (opts.mode) params.set('mode', opts.mode)
+  const qs = params.toString()
+  return request<Queue>(`/api/v1/reviews/queue${qs ? `?${qs}` : ''}`)
+}
 export const fetchProgress = () => request<Progress>('/api/v1/progress')
 export const fetchTopics = () => request<Topic[]>('/api/v1/topics')
 export const fetchCefr = () => request<CefrProgress>('/api/v1/progress/cefr')
+export const fetchSkillsBreakdown = () => request<SkillsBreakdown>('/api/v1/progress/skills')
 
 export interface GlossaryEntry {
   word: string

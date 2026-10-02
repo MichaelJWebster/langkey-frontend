@@ -3,9 +3,9 @@ import { fetchGlossary, type GlossaryEntry } from './api'
 import { speak } from './speech'
 
 const STATUS_STYLE: Record<string, string> = {
-  established: 'bg-emerald-50 text-emerald-700',
-  learning: 'bg-amber-50 text-amber-700',
-  seen: 'bg-slate-100 text-slate-500',
+  established: 'bg-emerald-400/15 text-emerald-300',
+  learning: 'bg-amber-400/15 text-amber-300',
+  seen: 'bg-white/10 text-slate-400',
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -39,9 +39,9 @@ export default function Glossary({ onBack }: { onBack: () => void }) {
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold">
           Glossary{' '}
-          {entries && <span className="text-sm font-normal text-slate-400">({entries.length} words met)</span>}
+          {entries && <span className="text-sm font-normal text-slate-500">({entries.length} words met)</span>}
         </h2>
-        <button onClick={onBack} className="text-sm font-medium text-sky-600 hover:text-sky-800">
+        <button onClick={onBack} className="text-sm font-medium text-teal-300 hover:text-teal-200">
           ← Back
         </button>
       </div>
@@ -51,12 +51,12 @@ export default function Glossary({ onBack }: { onBack: () => void }) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search Norwegian or English…"
-        className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-base outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+        className="mb-4 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-base text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-teal-300/60 focus:ring-2 focus:ring-teal-300/20"
       />
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-2xl border border-white/10 bg-white/5">
         {error ? (
-          <p className="p-6 text-center text-sm text-red-700">{error}</p>
+          <p className="p-6 text-center text-sm text-red-300">{error}</p>
         ) : !entries ? (
           <p className="p-6 text-center text-slate-400">Loading…</p>
         ) : filtered.length === 0 ? (
@@ -66,14 +66,14 @@ export default function Glossary({ onBack }: { onBack: () => void }) {
               : 'No matches.'}
           </p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-white/10">
             {filtered.map((e) => (
               <li key={e.word + e.translation} className="flex items-center gap-3 px-4 py-2.5">
                 <button
                   type="button"
                   aria-label={`Speak: ${e.word}`}
                   onClick={() => speak(e.word, e.audio_url)}
-                  className="shrink-0 rounded-full p-1 text-slate-400 transition hover:bg-sky-50 hover:text-sky-600"
+                  className="shrink-0 rounded-full p-1 text-slate-400 transition hover:bg-white/10 hover:text-teal-300"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                     <path d="M11 5 6 9H2v6h4l5 4V5z" />
@@ -82,7 +82,7 @@ export default function Glossary({ onBack }: { onBack: () => void }) {
                 </button>
                 <div className="min-w-0 flex-1">
                   <span className="font-medium">{e.word}</span>
-                  <span className="ml-2 text-sm text-slate-500">{e.translation}</span>
+                  <span className="ml-2 text-sm text-slate-400">{e.translation}</span>
                 </div>
                 <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_STYLE[e.status]}`}>
                   {STATUS_LABEL[e.status]}

@@ -82,17 +82,17 @@ function CharLegend() {
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-semibold transition ${
-          open ? 'border-sky-400 bg-sky-50 text-sky-600' : 'border-slate-300 text-slate-400 hover:border-sky-400 hover:text-sky-600'
+          open ? 'border-teal-300/60 bg-teal-300/10 text-teal-300' : 'border-white/20 text-slate-400 hover:border-teal-300/60 hover:text-teal-300'
         }`}
       >
         i
       </button>
       {open && (
-        <div className="absolute right-0 top-7 z-10 w-72 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-lg">
-          <p className="mb-2 text-xs font-medium text-slate-500">
+        <div className="absolute right-0 top-7 z-10 w-72 rounded-xl border border-white/15 bg-[#101a2e] p-4 text-left shadow-lg">
+          <p className="mb-2 text-xs font-medium text-slate-400">
             Typing æ ø å on a US keyboard (macOS) — it's the <b>Option (⌥)</b> key, not Command:
           </p>
-          <ul className="space-y-1 font-mono text-xs text-slate-600">
+          <ul className="space-y-1 font-mono text-xs text-slate-300">
             <li>å = ⌥A&ensp;·&ensp;Å = ⌥⇧A</li>
             <li>ø = ⌥O&ensp;·&ensp;Ø = ⌥⇧O</li>
             <li>æ = ⌥'&ensp;·&ensp;Æ = ⌥⇧'</li>
@@ -101,7 +101,7 @@ function CharLegend() {
             Or hold a / o down for the accent picker, or click the buttons here. Writing a for å
             counts as <i>nearly right</i> — never wrong.
           </p>
-          <p className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-700">
+          <p className="mt-2 rounded-md bg-amber-400/10 px-2 py-1 text-xs text-amber-300">
             ⚠️ Not ⌘ Command — ⌘O opens the browser's file dialog!
           </p>
           <p className="mt-2 text-xs text-slate-400">Keys: Enter check/next · R replay · H hint · Esc exit.</p>
@@ -310,8 +310,8 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
   if (error) {
     return (
       <Card>
-        <p className="text-sm text-red-700">{error}</p>
-        <button onClick={onFinish} className="mt-4 text-sm font-medium text-sky-600">Back</button>
+        <p className="text-sm text-red-300">{error}</p>
+        <button onClick={onFinish} className="mt-4 text-sm font-medium text-sky-300">Back</button>
       </Card>
     )
   }
@@ -319,8 +319,8 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
   if (exercises.length === 0) {
     return (
       <Card>
-        <p className="text-slate-600">Study some flashcards first — listening practice uses the words you've met.</p>
-        <button onClick={onFinish} className="mt-4 text-sm font-medium text-sky-600">Back</button>
+        <p className="text-slate-300">Study some flashcards first — listening practice uses the words you've met.</p>
+        <button onClick={onFinish} className="mt-4 text-sm font-medium text-sky-300">Back</button>
       </Card>
     )
   }
@@ -330,11 +330,11 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
         <div className="text-4xl">🎧</div>
         <p className="mt-3 text-xl font-medium">
           {score.right} / {score.total} correct
-          {score.helped > 0 && <span className="text-sm text-slate-500"> (+{score.helped} with hints)</span>}
-          {score.near > 0 && <span className="text-sm text-amber-600"> ({score.near} nearly — watch æ ø å)</span>}
+          {score.helped > 0 && <span className="text-sm text-slate-400"> (+{score.helped} with hints)</span>}
+          {score.near > 0 && <span className="text-sm text-amber-300"> ({score.near} nearly — watch æ ø å)</span>}
         </p>
         {score.total > 0 && (
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-slate-400">
             Session mark: {Math.round((score.points / score.total) * 100)}%
           </p>
         )}
@@ -355,21 +355,21 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
           <button
             onClick={onFinish}
             title="Back to dashboard (Esc)"
-            className="rounded-full px-1.5 py-0.5 font-medium transition hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-full px-1.5 py-0.5 font-medium transition hover:bg-white/10 hover:text-slate-200"
           >
             ← Back
           </button>
           {index + 1} / {exercises.length}
         </span>
         <span className="flex items-center gap-2">
-          <span className="rounded-full bg-slate-100 px-2 py-0.5">
+          <span className="rounded-full bg-white/10 px-2 py-0.5">
             {current.kind === 'dictation' ? 'type what you hear' : 'choose the meaning'}
           </span>
           <CharLegend />
         </span>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-8">
         <button
           onClick={play}
           className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-sky-600 text-white shadow transition hover:bg-sky-700"
@@ -392,8 +392,8 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                   }}
                   className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition ${
                     active
-                      ? 'border-sky-500 bg-sky-50 text-sky-700'
-                      : 'border-slate-200 text-slate-400 hover:border-sky-300 hover:text-sky-600'
+                      ? 'border-sky-400 bg-sky-400/10 text-sky-300'
+                      : 'border-white/15 text-slate-400 hover:border-sky-400/50 hover:text-sky-300'
                   }`}
                 >
                   {label}
@@ -412,7 +412,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                     <span
                       key={i}
                       className={
-                        m.state === 'ok' ? 'text-emerald-700' : m.state === 'near' ? 'text-amber-600 underline decoration-dotted' : 'text-red-600 underline'
+                        m.state === 'ok' ? 'text-emerald-400' : m.state === 'near' ? 'text-amber-300 underline decoration-dotted' : 'text-red-400 underline'
                       }
                     >
                       {m.word}{' '}
@@ -443,7 +443,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                       hintFeedback.marks.map((m, i) => (
                         <span key={i} className="mr-1.5 whitespace-nowrap">
                           {m.typed !== undefined && (
-                            <s className="text-red-600">{m.typed}</s>
+                            <s className="text-red-400">{m.typed}</s>
                           )}
                           {m.typed !== undefined && m.correct !== undefined && ' '}
                           {m.correct !== undefined && (
@@ -458,10 +458,10 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                         {hintFeedback.words.map((w, i) => (
                           <span key={i} className="mr-1.5 text-slate-400">{w}</span>
                         ))}
-                        <span className="font-medium text-sky-600">{hintFeedback.added}</span>
+                        <span className="font-medium text-sky-300">{hintFeedback.added}</span>
                       </>
                     ) : (
-                      <span className="text-sm text-emerald-700">
+                      <span className="text-sm text-emerald-300">
                         Looks complete — press Check ↵
                       </span>
                     )}
@@ -473,7 +473,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                   value={answer}
                   onChange={(e) => setAnswer(e.target.value)}
                   placeholder="Type the Norwegian sentence…"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-lg outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+                  className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-lg text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-sky-400/60 focus:ring-2 focus:ring-sky-400/20"
                   autoCapitalize="off"
                   autoCorrect="off"
                   spellCheck={false}
@@ -485,7 +485,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                         key={char}
                         type="button"
                         onClick={() => insertChar(char)}
-                        className="rounded-lg border border-slate-200 px-3 py-1 text-base font-medium text-slate-700 transition hover:border-sky-300 hover:bg-sky-50"
+                        className="rounded-lg border border-white/15 px-3 py-1 text-base font-medium text-slate-200 transition hover:border-sky-400/50 hover:bg-white/10"
                       >
                         {char}
                         <span className="ml-1.5 text-[10px] text-slate-400">{shortcut}</span>
@@ -495,7 +495,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                   <span className="flex gap-2">
                     <button
                       onClick={giveHint}
-                      className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-1.5 font-medium text-amber-700 transition hover:bg-amber-100"
+                      className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 font-medium text-amber-300 transition hover:bg-amber-400/20"
                     >
                       {hintPresses > 0 ? 'More' : 'Hint'}
                       <span className="ml-1 text-xs opacity-60">H</span>
@@ -503,9 +503,9 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                     <button
                       onClick={checkDictationAnswer}
                       disabled={!answer.trim() && !fullyRevealed}
-                      className="rounded-lg bg-slate-900 px-5 py-1.5 font-medium text-white transition hover:bg-slate-700 disabled:opacity-40"
+                      className="rounded-lg bg-gradient-to-r from-teal-300 to-indigo-400 px-5 py-1.5 font-semibold text-slate-900 transition hover:opacity-90 disabled:opacity-40"
                     >
-                      Check <span className="ml-1 text-xs text-slate-400">↵</span>
+                      Check <span className="ml-1 text-xs text-slate-700/70">↵</span>
                     </button>
                   </span>
                 </div>
@@ -524,11 +524,11 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
             )}
             <div className="grid gap-2">
               {current.options.map((opt, i) => {
-                let style = 'border-slate-200 text-slate-700 hover:border-sky-300 hover:bg-sky-50'
+                let style = 'border-white/15 text-slate-200 hover:border-sky-400/50 hover:bg-white/10'
                 if (result) {
-                  if (i === current.correct_index) style = 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                  else if (i === picked) style = 'border-red-300 bg-red-50 text-red-700'
-                  else style = 'border-slate-100 text-slate-400'
+                  if (i === current.correct_index) style = 'border-emerald-400/50 bg-emerald-400/10 text-emerald-300'
+                  else if (i === picked) style = 'border-red-400/50 bg-red-400/10 text-red-300'
+                  else style = 'border-white/5 text-slate-500'
                 }
                 return (
                   <button
@@ -570,5 +570,5 @@ function NextButton({ onClick }: { onClick: () => void }) {
 }
 
 function Card({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">{children}</div>
+  return <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">{children}</div>
 }

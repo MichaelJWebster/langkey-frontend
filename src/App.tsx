@@ -2,16 +2,26 @@ import { useState, type FormEvent } from 'react'
 import { clearToken, getToken, login } from './api'
 import Dashboard from './Dashboard'
 
+// Aurora washes behind everything; plain classes can't express these radials.
+const AURORA_BG = {
+  background:
+    'radial-gradient(900px 420px at 75% -10%, rgba(45,212,191,.14), transparent 60%),' +
+    'radial-gradient(800px 420px at 20% -14%, rgba(129,140,248,.16), transparent 60%),' +
+    '#0b1220',
+}
+
 export default function App() {
   const [authed, setAuthed] = useState(() => getToken() !== null)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-sky-50 text-slate-900 antialiased">
-      <div className="mx-auto flex min-h-screen w-full flex-col justify-center px-6 py-12 md:w-2/3 md:px-0">
-        <header className="mb-10 text-center">
-          <div className="mb-3 text-5xl">🗝️</div>
-          <h1 className="text-3xl font-semibold tracking-tight">LangKey</h1>
-          <p className="mt-1 text-sm text-slate-500">Your key to Norwegian</p>
+    <div className="min-h-screen text-slate-100 antialiased" style={AURORA_BG}>
+      <div className="mx-auto flex min-h-screen w-full flex-col justify-center px-4 py-10 md:w-2/3 md:px-0">
+        <header className="mb-8 text-center">
+          <div className="mb-2 text-5xl">🗝️</div>
+          <h1 className="bg-gradient-to-r from-teal-300 via-indigo-300 to-pink-300 bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
+            LangKey
+          </h1>
+          <p className="mt-1 text-sm text-slate-400">Your key to Norwegian</p>
         </header>
         {authed ? (
           <Dashboard onLogout={() => { clearToken(); setAuthed(false) }} />
@@ -45,22 +55,22 @@ function LoginCard({ onLogin }: { onLogin: () => void }) {
     }
   }
 
+  const inputClasses =
+    'mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-base text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-teal-300/60 focus:ring-2 focus:ring-teal-300/20'
+
   return (
-    <form
-      onSubmit={submit}
-      className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"
-    >
-      <label className="block text-sm font-medium text-slate-700">
+    <form onSubmit={submit} className="rounded-2xl border border-white/10 bg-white/5 p-8">
+      <label className="block text-sm font-medium text-slate-300">
         Email
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-base outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+          className={inputClasses}
         />
       </label>
-      <label className="mt-4 block text-sm font-medium text-slate-700">
+      <label className="mt-4 block text-sm font-medium text-slate-300">
         Password
         <input
           type="password"
@@ -68,16 +78,16 @@ function LoginCard({ onLogin }: { onLogin: () => void }) {
           onChange={(e) => setPassword(e.target.value)}
           required
           placeholder="langkey-dev"
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-base outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
+          className={inputClasses}
         />
       </label>
       {error && (
-        <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        <p className="mt-3 rounded-lg bg-red-400/10 px-3 py-2 text-sm text-red-300">{error}</p>
       )}
       <button
         type="submit"
         disabled={busy}
-        className="mt-6 w-full rounded-lg bg-sky-600 py-2.5 font-medium text-white transition hover:bg-sky-700 disabled:opacity-50"
+        className="mt-6 w-full rounded-lg bg-gradient-to-r from-teal-300 to-indigo-400 py-2.5 font-semibold text-slate-900 transition hover:opacity-90 disabled:opacity-50"
       >
         {busy ? 'Signing in…' : 'Sign in'}
       </button>

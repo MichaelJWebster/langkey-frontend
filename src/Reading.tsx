@@ -37,18 +37,18 @@ export default function Reading({ onBack }: { onBack: () => void }) {
         <button
           onClick={onBack}
           title="Back to dashboard (Esc)"
-          className="rounded-full px-1.5 py-0.5 font-medium transition hover:bg-slate-100 hover:text-slate-600"
+          className="rounded-full px-1.5 py-0.5 font-medium transition hover:bg-white/10 hover:text-slate-200"
         >
           ← Back
         </button>
         <span>Interleaved Norwegian–English reading</span>
       </div>
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-8">
         <h1 className="text-xl font-semibold">📖 Reading</h1>
-        {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
+        {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
         {!texts && !error && <p className="mt-4 text-slate-400">Loading library…</p>}
         {texts && texts.length === 0 && (
-          <p className="mt-4 text-slate-600">
+          <p className="mt-4 text-slate-300">
             The library is empty — import a text with the backend scripts (find_texts,
             prepare_text, import_text).
           </p>
@@ -60,18 +60,18 @@ export default function Reading({ onBack }: { onBack: () => void }) {
               <button
                 key={t.slug}
                 onClick={() => setOpen(t)}
-                className="rounded-xl border border-slate-200 p-4 text-left transition hover:border-sky-300 hover:bg-sky-50"
+                className="rounded-xl border border-white/15 p-4 text-left transition hover:border-sky-400/50 hover:bg-white/10"
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-medium text-slate-900">{t.title}</span>
-                  <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                  <span className="font-medium text-slate-100">{t.title}</span>
+                  <span className="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-xs text-slate-400">
                     {t.kind}
                   </span>
                 </div>
-                <p className="mt-0.5 text-sm text-slate-500">{t.author}</p>
+                <p className="mt-0.5 text-sm text-slate-400">{t.author}</p>
                 <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
-                  <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full bg-sky-500" style={{ width: `${pct}%` }} />
+                  <div className="h-1.5 w-32 overflow-hidden rounded-full bg-white/10">
+                    <div className="h-full bg-sky-400" style={{ width: `${pct}%` }} />
                   </div>
                   {t.position > 0
                     ? `${pct}% · continue at sentence ${t.position}`
@@ -140,7 +140,7 @@ function Reader({ text, onBack }: { text: TextSummary; onBack: () => void }) {
         <button
           onClick={onBack}
           title="Back to library (Esc)"
-          className="rounded-full px-1.5 py-0.5 font-medium transition hover:bg-slate-100 hover:text-slate-600"
+          className="rounded-full px-1.5 py-0.5 font-medium transition hover:bg-white/10 hover:text-slate-200"
         >
           ← Library
         </button>
@@ -154,18 +154,18 @@ function Reader({ text, onBack }: { text: TextSummary; onBack: () => void }) {
           }}
           className={`rounded-full border px-2.5 py-0.5 font-medium transition ${
             showEnglish
-              ? 'border-slate-200 text-slate-500 hover:border-sky-300'
-              : 'border-sky-500 bg-sky-50 text-sky-700'
+              ? 'border-white/15 text-slate-400 hover:border-sky-400/50'
+              : 'border-sky-400 bg-sky-400/10 text-sky-300'
           }`}
         >
           {showEnglish ? 'Hide English' : 'English hidden — tap a line to peek'}
         </button>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-8">
         <h1 className="text-xl font-semibold">{text.title}</h1>
         <p className="mt-0.5 text-sm text-slate-400">{text.author}</p>
-        {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
+        {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
         {!page && !error && <p className="mt-4 text-slate-400">Loading…</p>}
 
         <div className="mt-6 space-y-5">
@@ -187,7 +187,7 @@ function Reader({ text, onBack }: { text: TextSummary; onBack: () => void }) {
                     }
                     className={showEnglish ? '' : 'cursor-pointer'}
                   >
-                    <p className="text-lg leading-snug text-slate-900">{s.no}</p>
+                    <p className="text-lg leading-snug text-slate-100">{s.no}</p>
                     <p
                       className={`text-sm leading-snug transition ${
                         visible ? 'text-slate-400' : 'select-none text-transparent'
