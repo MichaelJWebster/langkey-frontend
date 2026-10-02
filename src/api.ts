@@ -183,7 +183,7 @@ export const fetchListening = (limit = 8) =>
   request<{ exercises: ListeningExercise[] }>(`/api/v1/exercises/listening?limit=${limit}`)
 
 export const postAttempt = (attempt: {
-  exercise_type: 'dictation' | 'listen_choose'
+  exercise_type: 'dictation' | 'listen_choose' | 'vocab_recall'
   item_id?: number
   example_id?: number
   correct: boolean

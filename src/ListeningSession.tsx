@@ -1,46 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchListening, postAttempt, type ListeningExercise } from './api'
+import { clean, fold, wordCredit } from './matching'
 import { speak, stopSpeech } from './speech'
-
-// --- Norwegian text checking (diacritic-tolerant) ---------------------------
-
-function clean(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[.,!?…"'«»:;()]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function fold(s: string): string {
-  return s.replaceAll('å', 'a').replaceAll('ø', 'o').replaceAll('æ', 'ae')
-}
-
-function editDistance(a: string, b: string): number {
-  if (!a.length) return b.length
-  if (!b.length) return a.length
-  let prev = Array.from({ length: b.length + 1 }, (_, j) => j)
-  for (let i = 1; i <= a.length; i++) {
-    const cur = [i]
-    for (let j = 1; j <= b.length; j++) {
-      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
-    }
-    prev = cur
-  }
-  return prev[b.length]
-}
-
-// Credit for one word of the mark: 1 when right (folded å/ø/æ counts),
-// otherwise spelling similarity to the target — zeroed below half so an
-// unrelated word earns nothing.
-function wordCredit(got: string | undefined, target: string): number {
-  if (!got) return 0
-  const a = fold(got)
-  const b = fold(target)
-  if (a === b) return 1
-  const sim = 1 - editDistance(a, b) / Math.max(a.length, b.length)
-  return sim >= 0.5 ? sim : 0
-}
 
 type WordMark = { word: string; state: 'ok' | 'near' | 'wrong' }
 

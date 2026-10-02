@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchQueue, submitReview, type Card, type Gloss, type QueueOptions } from './api'
+import { fetchQueue, postAttempt, submitReview, type Card, type Gloss, type QueueOptions } from './api'
+import DirectionBanner from './Flags'
+import { gradeAnswer, ratingFor, type AnswerMark } from './matching'
 import { canSpeak, speak } from './speech'
 
-type Rating = 1 | 2 | 3 | 4
-
-const RATINGS: { rating: Rating; label: string; key: string; classes: string }[] = [
-  { rating: 1, label: 'Again', key: '1', classes: 'border-red-400/30 bg-red-400/10 text-red-300 hover:bg-red-400/20' },
-  { rating: 2, label: 'Hard', key: '2', classes: 'border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20' },
-  { rating: 3, label: 'Good', key: '3', classes: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20' },
-  { rating: 4, label: 'Easy', key: '4', classes: 'border-sky-400/30 bg-sky-400/10 text-sky-300 hover:bg-sky-400/20' },
+const SPECIAL_CHARS: { char: string; shortcut: string }[] = [
+  { char: 'æ', shortcut: "⌥'" },
+  { char: 'ø', shortcut: '⌥O' },
+  { char: 'å', shortcut: '⌥A' },
 ]
 
 function SpeakButton({ text, audioUrl, className = '' }: { text: string; audioUrl?: string; className?: string }) {
@@ -32,20 +31,13 @@ function SpeakButton({ text, audioUrl, className = '' }: { text: string; audioUr
   )
 }
 
-const RATING_GUIDE: { label: string; color: string; text: string }[] = [
-  { label: 'Again', color: 'text-red-300', text: "Couldn't recall it. Comes back in about a minute, and the schedule restarts short." },
-  { label: 'Hard', color: 'text-amber-300', text: 'Recalled, but slowly or shakily. The next gap grows only a little.' },
-  { label: 'Good', color: 'text-emerald-300', text: 'Recalled with normal effort. The standard choice — the gap roughly doubles or triples.' },
-  { label: 'Easy', color: 'text-sky-300', text: 'Instant and effortless. Jumps much further ahead — use sparingly.' },
-]
-
-function RatingLegend() {
+function ScoringLegend() {
   const [open, setOpen] = useState(false)
   return (
     <>
       <button
         type="button"
-        aria-label="How do the rating buttons work?"
+        aria-label="How is my answer marked?"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-semibold transition ${
@@ -57,18 +49,18 @@ function RatingLegend() {
       {open && (
         <div className="absolute left-0 right-0 top-7 z-10 rounded-xl border border-white/15 bg-[#101a2e] p-4 text-left shadow-lg">
           <p className="mb-2 text-xs font-medium text-slate-400">
-            Decide your answer before revealing, then grade honestly — each button tells the
-            scheduler when to show the card next.
+            Type your answer and the card marks itself — how close you were decides when it comes
+            back, so there is nothing to grade by hand.
           </p>
           <ul className="space-y-1.5 text-xs text-slate-300">
-            {RATING_GUIDE.map((r) => (
-              <li key={r.label}>
-                <span className={`font-semibold ${r.color}`}>{r.label}</span> — {r.text}
-              </li>
-            ))}
+            <li><span className="font-semibold text-sky-300">Spot on, quickly</span> — jumps much further ahead.</li>
+            <li><span className="font-semibold text-emerald-300">Spot on</span> — the gap roughly doubles or triples.</li>
+            <li><span className="font-semibold text-amber-300">Nearly</span> — a typo or near-synonym; the gap grows only a little.</li>
+            <li><span className="font-semibold text-red-300">Not quite</span> — comes back within the minute.</li>
           </ul>
           <p className="mt-2 text-xs text-slate-500">
-            Keys: space reveals · 1–4 grade · s speaks the Norwegian.
+            Alternatives and articles are accepted: for "a road, a way" either will do, with or
+            without "a". Keys: Enter checks, then Enter again moves on · s speaks the Norwegian.
           </p>
         </div>
       )}
@@ -89,6 +81,14 @@ function GlossList({ gloss }: { gloss: Gloss[] }) {
   )
 }
 
+const MARK_STYLE: Record<string, { label: string; className: string }> = {
+  easy: { label: 'Spot on — and quick', className: 'text-sky-300' },
+  exact: { label: 'Spot on', className: 'text-emerald-300' },
+  close: { label: 'Nearly', className: 'text-amber-300' },
+  wrong: { label: 'Not quite', className: 'text-red-300' },
+  revealed: { label: 'Revealed', className: 'text-slate-400' },
+}
+
 export default function ReviewSession({
   options = {},
   onFinish,
@@ -98,10 +98,13 @@ export default function ReviewSession({
 }) {
   const [cards, setCards] = useState<Card[] | null>(null)
   const [index, setIndex] = useState(0)
-  const [revealed, setRevealed] = useState(false)
-  const [glossOpen, setGlossOpen] = useState(false) // phone glossary panel
-  const [done, setDone] = useState(0)
+  const [answer, setAnswer] = useState('')
+  const [outcome, setOutcome] = useState<{ mark: AnswerMark | null; rating: 1 | 2 | 3 | 4 } | null>(null)
+  const [glossOpen, setGlossOpen] = useState(false)
+  const [score, setScore] = useState({ right: 0, near: 0, total: 0 })
   const [error, setError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const askedAt = useRef<number>(Date.now())
   // Cards rated Again/Hard come due again within the sitting; requeue them locally.
   const requeued = useRef<Card[]>([])
 
@@ -109,8 +112,9 @@ export default function ReviewSession({
   const loadQueue = useCallback(() => {
     setCards(null)
     setIndex(0)
-    setRevealed(false)
-    setDone(0)
+    setAnswer('')
+    setOutcome(null)
+    setScore({ right: 0, near: 0, total: 0 })
     requeued.current = []
     fetchQueue({ focus, direction, mode })
       .then((q) => setCards(q.cards))
@@ -120,29 +124,61 @@ export default function ReviewSession({
   useEffect(loadQueue, [loadQueue])
 
   const current = cards && index < cards.length ? cards[index] : null
+  const isRecognition = current?.direction === 'recognition'
+  // Recognition asks the Norwegian and wants English back; production reverses it.
+  const prompt = current ? (isRecognition ? current.item.source_text : current.item.translation) : ''
+  const expected = current ? (isRecognition ? current.item.translation : current.item.source_text) : ''
+
+  useEffect(() => {
+    askedAt.current = Date.now()
+    setGlossOpen(false)
+    inputRef.current?.focus()
+  }, [index, cards])
 
   const advance = useCallback(() => {
-    setRevealed(false)
-    setGlossOpen(false)
+    setAnswer('')
+    setOutcome(null)
     setIndex((i) => i + 1)
   }, [])
 
-  const rate = useCallback(
-    async (rating: Rating) => {
-      if (!current) return
-      setDone((d) => d + 1)
-      advance()
+  const grade = useCallback(
+    async (rating: 1 | 2 | 3 | 4, mark: AnswerMark | null) => {
+      if (!current || outcome) return
+      setOutcome({ mark, rating })
+      setScore((s) => ({
+        right: s.right + (rating >= 3 ? 1 : 0),
+        near: s.near + (rating === 2 ? 1 : 0),
+        total: s.total + 1,
+      }))
       try {
         const result = await submitReview(current.card_id, rating)
-        if (result.requeue) {
-          requeued.current.push({ ...current, is_new: false })
-        }
+        if (result.requeue) requeued.current.push({ ...current, is_new: false })
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to save review')
       }
+      // Logged for later analysis; the review itself already moved the card.
+      postAttempt({
+        exercise_type: 'vocab_recall',
+        item_id: current.item.id,
+        correct: rating >= 3,
+        near_miss: rating === 2,
+        score: mark ? Math.max(0, Math.min(1, mark.similarity)) : 0,
+        answer: mark ? answer : undefined,
+      }).catch(() => undefined)
     },
-    [current, advance],
+    [current, outcome, answer],
   )
+
+  const check = useCallback(() => {
+    if (!current || outcome || !answer.trim()) return
+    const mark = gradeAnswer(expected, answer, !isRecognition)
+    grade(ratingFor(mark, Date.now() - askedAt.current), mark)
+  }, [current, outcome, answer, expected, isRecognition, grade])
+
+  const reveal = useCallback(() => {
+    if (!current || outcome) return
+    grade(1, null)
+  }, [current, outcome, grade])
 
   // When the main queue is exhausted, drain locally requeued learning cards.
   useEffect(() => {
@@ -157,22 +193,30 @@ export default function ReviewSession({
       // Never react to browser shortcuts (⌘O opens a file dialog, etc.).
       if (e.metaKey || e.ctrlKey || e.altKey) return
       if (!current) return
-      if (!revealed && (e.key === ' ' || e.key === 'Enter')) {
+      if (e.key === 'Enter') {
         e.preventDefault()
-        setRevealed(true)
-      } else if (revealed && ['1', '2', '3', '4'].includes(e.key)) {
-        rate(Number(e.key) as Rating)
+        if (outcome) advance()
+        else check()
       } else if (e.key === 'Escape') {
         onFinish()
-      } else if (e.key === 's') {
-        // Speak the Norwegian side: front for recognition, back once revealed
-        // for production.
-        if (current.direction === 'recognition' || revealed) speak(current.item.source_text, current.item.audio_url)
+      } else if (e.key === 's' && !(e.target instanceof HTMLInputElement)) {
+        speak(current.item.source_text, current.item.audio_url)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [current, revealed, rate, onFinish])
+  }, [current, outcome, check, advance, onFinish])
+
+  function insertChar(ch: string) {
+    const el = inputRef.current
+    const start = el?.selectionStart ?? answer.length
+    const end = el?.selectionEnd ?? start
+    setAnswer((v) => v.slice(0, start) + ch + v.slice(end))
+    requestAnimationFrame(() => {
+      el?.focus()
+      el?.setSelectionRange(start + 1, start + 1)
+    })
+  }
 
   if (error) {
     return (
@@ -204,10 +248,14 @@ export default function ReviewSession({
       <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
         <div className="text-4xl">🎉</div>
         <p className="mt-3 text-xl font-medium">
-          {done > 0 ? `Deck complete — ${done} cards reviewed` : 'Nothing due right now'}
+          {score.total > 0 ? `Deck complete — ${score.right} / ${score.total} spot on` : 'Nothing due right now'}
         </p>
         <p className="mt-1 text-sm text-slate-400">
-          {done > 0 ? 'Kjempebra! Grab another deck when you are ready.' : emptyMessage}
+          {score.total > 0
+            ? score.near > 0
+              ? `Kjempebra! ${score.near} nearly right — those come back sooner.`
+              : 'Kjempebra! Grab another deck when you are ready.'
+            : emptyMessage}
         </p>
         <div className="mt-6 flex justify-center gap-3">
           <button
@@ -227,10 +275,6 @@ export default function ReviewSession({
     )
   }
 
-  const isRecognition = current.direction === 'recognition'
-  const front = isRecognition ? current.item.source_text : current.item.translation
-  const back = isRecognition ? current.item.translation : current.item.source_text
-
   // One glossary for the whole card: the examples often share words.
   const glossary: Gloss[] = []
   const seen = new Set<string>()
@@ -242,6 +286,15 @@ export default function ReviewSession({
       }
     }
   }
+
+  const markKey = !outcome
+    ? null
+    : outcome.mark === null
+      ? 'revealed'
+      : outcome.rating === 4
+        ? 'easy'
+        : outcome.mark.verdict
+  const markStyle = markKey ? MARK_STYLE[markKey] : null
 
   return (
     <div>
@@ -256,33 +309,90 @@ export default function ReviewSession({
             ← End deck
           </button>
           {index + 1} / {cards.length}
-          <RatingLegend />
+          <ScoringLegend />
         </span>
-        <span className="flex items-center gap-2">
-          {current.is_new && (
-            <span className="rounded-full bg-sky-400/15 px-2 py-0.5 font-medium text-sky-300">new</span>
-          )}
-          <span className="rounded-full bg-white/10 px-2 py-0.5">
-            {isRecognition ? 'norsk → english' : 'english → norsk'}
-          </span>
-        </span>
+        {current.is_new && (
+          <span className="rounded-full bg-sky-400/15 px-2 py-0.5 font-medium text-sky-300">new</span>
+        )}
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
-        <div className="flex items-center justify-center gap-2">
-          <p className="text-3xl font-semibold tracking-tight">{front}</p>
+        <DirectionBanner direction={current.direction} />
+
+        <div className="mt-6 flex items-center justify-center gap-2">
+          <p className="text-3xl font-semibold tracking-tight">{prompt}</p>
           {isRecognition && <SpeakButton text={current.item.source_text} audioUrl={current.item.audio_url} />}
         </div>
         {current.item.pos && (
           <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">{current.item.pos}</p>
         )}
 
-        {revealed ? (
+        {!outcome ? (
+          <div className="mt-6">
+            <input
+              ref={inputRef}
+              autoFocus
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              placeholder={isRecognition ? 'Type the English…' : 'Type the Norwegian…'}
+              className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-center text-lg text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-teal-300/60 focus:ring-2 focus:ring-teal-300/20"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <div className="flex gap-1.5">
+                {!isRecognition &&
+                  SPECIAL_CHARS.map(({ char, shortcut }) => (
+                    <button
+                      key={char}
+                      type="button"
+                      onClick={() => insertChar(char)}
+                      className="rounded-lg border border-white/15 px-3 py-1 text-base font-medium text-slate-200 transition hover:border-teal-300/50 hover:bg-white/10"
+                    >
+                      {char}
+                      <span className="ml-1.5 text-[10px] text-slate-500">{shortcut}</span>
+                    </button>
+                  ))}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={reveal}
+                  className="rounded-lg border border-white/15 px-4 py-1.5 text-sm font-medium text-slate-400 transition hover:bg-white/10 hover:text-slate-200"
+                >
+                  I don't know
+                </button>
+                <button
+                  onClick={check}
+                  disabled={!answer.trim()}
+                  className="rounded-lg bg-gradient-to-r from-teal-300 to-indigo-400 px-5 py-1.5 font-semibold text-slate-900 transition hover:opacity-90 disabled:opacity-40"
+                >
+                  Check <span className="ml-1 text-xs text-slate-700/70">↵</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
           <div className="mt-6 border-t border-white/10 pt-6">
-            <div className="flex items-center justify-center gap-2">
-              <p className="text-2xl text-slate-200">{back}</p>
+            <p className={`text-sm font-semibold ${markStyle?.className}`}>
+              {markStyle?.label}
+              {outcome.mark && outcome.mark.verdict !== 'exact' && (
+                <span className="ml-2 font-normal text-slate-400">
+                  {Math.round(outcome.mark.similarity * 100)}% match
+                </span>
+              )}
+            </p>
+            {outcome.mark && outcome.mark.verdict !== 'exact' && (
+              <p className="mt-1 text-sm text-slate-500">
+                you wrote <span className="text-slate-300">{answer}</span>
+              </p>
+            )}
+
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <p className="text-2xl text-slate-200">{expected}</p>
               {!isRecognition && <SpeakButton text={current.item.source_text} audioUrl={current.item.audio_url} />}
             </div>
+
             <ul className="mt-5 space-y-3 text-left">
               {current.item.examples.map((ex) => (
                 <li key={ex.sentence} className="flex items-start gap-1.5">
@@ -322,32 +432,16 @@ export default function ReviewSession({
                 </div>
               </>
             )}
+
+            <button
+              onClick={advance}
+              className="mt-6 w-full rounded-lg bg-gradient-to-r from-teal-300 to-indigo-400 py-3 font-semibold text-slate-900 transition hover:opacity-90"
+            >
+              Next <span className="ml-1 text-xs text-slate-700/70">↵</span>
+            </button>
           </div>
-        ) : (
-          <button
-            onClick={() => setRevealed(true)}
-            className="mt-8 w-full rounded-lg bg-gradient-to-r from-teal-300 to-indigo-400 py-3 font-semibold text-slate-900 transition hover:opacity-90"
-          >
-            Show answer
-            <span className="ml-2 text-xs text-slate-700/70">space</span>
-          </button>
         )}
       </div>
-
-      {revealed && (
-        <div className="mt-4 grid grid-cols-4 gap-2">
-          {RATINGS.map(({ rating, label, key, classes }) => (
-            <button
-              key={rating}
-              onClick={() => rate(rating)}
-              className={`rounded-lg border py-3 text-sm font-medium transition ${classes}`}
-            >
-              {label}
-              <span className="mt-0.5 block text-[10px] opacity-60">{key}</span>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
