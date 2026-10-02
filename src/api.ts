@@ -86,10 +86,28 @@ export interface Topic {
   remaining: number
 }
 
+export interface CefrSkill {
+  skill: string
+  practised: boolean
+  level: string | null // highest band cleared; null = pre-A1
+  next_level: string | null
+  progress: number // 0..1 toward next_level
+  detail: string
+}
+
+export interface CefrProgress {
+  overall_level: string | null
+  overall_next: string | null
+  overall_progress: number
+  skills: CefrSkill[]
+  note: string
+}
+
 export const fetchQueue = (focus?: string | null) =>
   request<Queue>(`/api/v1/reviews/queue${focus ? `?focus=${encodeURIComponent(focus)}` : ''}`)
 export const fetchProgress = () => request<Progress>('/api/v1/progress')
 export const fetchTopics = () => request<Topic[]>('/api/v1/topics')
+export const fetchCefr = () => request<CefrProgress>('/api/v1/progress/cefr')
 
 export interface GlossaryEntry {
   word: string

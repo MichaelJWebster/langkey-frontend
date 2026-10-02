@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchProgress, fetchTopics, getToken, type Progress, type Topic } from './api'
+import {
+  fetchCefr,
+  fetchProgress,
+  fetchTopics,
+  getToken,
+  type CefrProgress,
+  type CefrSkill,
+  type Progress,
+  type Topic,
+} from './api'
 import Glossary from './Glossary'
 import ListeningSession from './ListeningSession'
 import Reading from './Reading'
@@ -17,6 +26,7 @@ function getStoredFocus(): string | null {
 
 export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [progress, setProgress] = useState<Progress | null>(null)
+  const [cefr, setCefr] = useState<CefrProgress | null>(null)
   const [topics, setTopics] = useState<Topic[]>([])
   const [focus, setFocus] = useState<string | null>(getStoredFocus)
   const [error, setError] = useState<string | null>(null)
@@ -26,10 +36,11 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [inReading, setInReading] = useState(false)
 
   const refresh = useCallback(() => {
-    Promise.all([fetchProgress(), fetchTopics()])
-      .then(([p, t]) => {
+    Promise.all([fetchProgress(), fetchTopics(), fetchCefr()])
+      .then(([p, t, c]) => {
         setProgress(p)
         setTopics(t)
+        setCefr(c)
       })
       .catch((e) => {
         // request() clears the token on 401; bounce back to the login page.
@@ -157,6 +168,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
         )}
       </div>
 
+      {cefr && <CefrCard cefr={cefr} />}
+
       <div className="mt-4 flex items-center justify-center gap-6 text-center">
         <button onClick={() => setInGlossary(true)} className="text-sm font-medium text-sky-600 transition hover:text-sky-800">
           Glossary
@@ -165,6 +178,55 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           Sign out
         </button>
       </div>
+    </div>
+  )
+}
+
+function CefrCard({ cefr }: { cefr: CefrProgress }) {
+  return (
+    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex items-baseline justify-between">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+          CEFR estimate
+        </p>
+        <p className="text-sm font-semibold text-slate-700">
+          {cefr.overall_level ?? 'Pre-A1'}
+          {cefr.overall_next && (
+            <span className="ml-1.5 font-normal text-slate-400">
+              {Math.round(cefr.overall_progress * 100)}% toward {cefr.overall_next}
+            </span>
+          )}
+        </p>
+      </div>
+      <div className="mt-3 space-y-2">
+        {cefr.skills.map((s) => (
+          <CefrSkillRow key={s.skill} s={s} />
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-slate-400">{cefr.note}</p>
+    </div>
+  )
+}
+
+function CefrSkillRow({ s }: { s: CefrSkill }) {
+  const label = s.skill[0].toUpperCase() + s.skill.slice(1)
+  const pct = Math.round(s.progress * 100)
+  return (
+    <div className="flex items-center gap-3 text-sm" title={s.detail}>
+      <span className="w-24 shrink-0 text-slate-600">{label}</span>
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+        <div
+          className={`h-full rounded-full ${s.practised ? 'bg-sky-500' : 'bg-slate-200'}`}
+          style={{ width: `${Math.max(2, pct)}%` }}
+        />
+      </div>
+      <span className="w-32 shrink-0 text-right text-xs text-slate-500">
+        {s.practised
+          ? `${s.level ?? 'pre-A1'}${s.next_level ? ` · ${pct}% to ${s.next_level}` : ''}`
+          : s.skill === 'speaking'
+            ? 'not trained yet'
+            : 'not started'}
+      </span>
     </div>
   )
 }
