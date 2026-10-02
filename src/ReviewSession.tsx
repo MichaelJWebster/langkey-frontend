@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchQueue, postAttempt, submitReview, type Card, type Gloss, type QueueOptions } from './api'
+import {
+  addAlternative,
+  fetchQueue,
+  postAttempt,
+  submitReview,
+  type Card,
+  type Gloss,
+  type QueueOptions,
+} from './api'
 import DirectionBanner from './Flags'
 import { gradeAnswer, ratingFor, type AnswerMark } from './matching'
 import { canSpeak, speak } from './speech'
@@ -87,6 +95,7 @@ const MARK_STYLE: Record<string, { label: string; className: string }> = {
   close: { label: 'Nearly', className: 'text-amber-300' },
   wrong: { label: 'Not quite', className: 'text-red-300' },
   revealed: { label: 'Revealed', className: 'text-slate-400' },
+  counted: { label: 'Counted as correct', className: 'text-emerald-300' },
 }
 
 export default function ReviewSession({
@@ -99,7 +108,11 @@ export default function ReviewSession({
   const [cards, setCards] = useState<Card[] | null>(null)
   const [index, setIndex] = useState(0)
   const [answer, setAnswer] = useState('')
-  const [outcome, setOutcome] = useState<{ mark: AnswerMark | null; rating: 1 | 2 | 3 | 4 } | null>(null)
+  const [outcome, setOutcome] = useState<{
+    mark: AnswerMark | null
+    rating: 1 | 2 | 3 | 4
+    overridden?: boolean
+  } | null>(null)
   const [glossOpen, setGlossOpen] = useState(false)
   const [score, setScore] = useState({ right: 0, near: 0, total: 0 })
   const [error, setError] = useState<string | null>(null)
@@ -107,6 +120,9 @@ export default function ReviewSession({
   const askedAt = useRef<number>(Date.now())
   // Cards rated Again/Hard come due again within the sitting; requeue them locally.
   const requeued = useRef<Card[]>([])
+  // The marked-but-unsent review. Holding it until the learner moves on lets
+  // "I was right" correct the rating before anything reaches the scheduler.
+  const pending = useRef<{ card: Card; rating: 1 | 2 | 3 | 4; mark: AnswerMark | null; answer: string } | null>(null)
 
   const { focus, direction, mode } = options
   const loadQueue = useCallback(() => {
@@ -135,43 +151,54 @@ export default function ReviewSession({
     inputRef.current?.focus()
   }, [index, cards])
 
+  /** Send the held review; nothing reaches the scheduler before this. */
+  const flush = useCallback(async () => {
+    const held = pending.current
+    if (!held) return
+    pending.current = null
+    try {
+      const result = await submitReview(held.card.card_id, held.rating)
+      if (result.requeue) requeued.current.push({ ...held.card, is_new: false })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save review')
+    }
+    postAttempt({
+      exercise_type: 'vocab_recall',
+      item_id: held.card.item.id,
+      correct: held.rating >= 3,
+      near_miss: held.rating === 2,
+      score: held.mark ? Math.max(0, Math.min(1, held.mark.similarity)) : 0,
+      answer: held.mark ? held.answer : undefined,
+    }).catch(() => undefined)
+  }, [])
+
   const advance = useCallback(() => {
+    flush()
     setAnswer('')
     setOutcome(null)
     setIndex((i) => i + 1)
-  }, [])
+  }, [flush])
+
+  // Leaving mid-card still records what was marked.
+  useEffect(() => () => void flush(), [flush])
 
   const grade = useCallback(
-    async (rating: 1 | 2 | 3 | 4, mark: AnswerMark | null) => {
+    (rating: 1 | 2 | 3 | 4, mark: AnswerMark | null) => {
       if (!current || outcome) return
+      pending.current = { card: current, rating, mark, answer }
       setOutcome({ mark, rating })
       setScore((s) => ({
         right: s.right + (rating >= 3 ? 1 : 0),
         near: s.near + (rating === 2 ? 1 : 0),
         total: s.total + 1,
       }))
-      try {
-        const result = await submitReview(current.card_id, rating)
-        if (result.requeue) requeued.current.push({ ...current, is_new: false })
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to save review')
-      }
-      // Logged for later analysis; the review itself already moved the card.
-      postAttempt({
-        exercise_type: 'vocab_recall',
-        item_id: current.item.id,
-        correct: rating >= 3,
-        near_miss: rating === 2,
-        score: mark ? Math.max(0, Math.min(1, mark.similarity)) : 0,
-        answer: mark ? answer : undefined,
-      }).catch(() => undefined)
     },
     [current, outcome, answer],
   )
 
   const check = useCallback(() => {
     if (!current || outcome || !answer.trim()) return
-    const mark = gradeAnswer(expected, answer, !isRecognition)
+    const mark = gradeAnswer(expected, answer, !isRecognition, current.alternatives)
     grade(ratingFor(mark, Date.now() - askedAt.current), mark)
   }, [current, outcome, answer, expected, isRecognition, grade])
 
@@ -179,6 +206,20 @@ export default function ReviewSession({
     if (!current || outcome) return
     grade(1, null)
   }, [current, outcome, grade])
+
+  /** "I was right": count this answer, and accept it on this card from now on. */
+  const override = useCallback(() => {
+    if (!current || !outcome || outcome.overridden || !answer.trim()) return
+    const rating = 3 as const
+    if (pending.current) pending.current = { ...pending.current, rating }
+    setOutcome({ ...outcome, rating, overridden: true })
+    setScore((s) => ({
+      right: s.right + 1,
+      near: s.near - (outcome.rating === 2 ? 1 : 0),
+      total: s.total,
+    }))
+    addAlternative(current.card_id, answer.trim()).catch(() => undefined)
+  }, [current, outcome, answer])
 
   // When the main queue is exhausted, drain locally requeued learning cards.
   useEffect(() => {
@@ -289,12 +330,18 @@ export default function ReviewSession({
 
   const markKey = !outcome
     ? null
-    : outcome.mark === null
-      ? 'revealed'
-      : outcome.rating === 4
-        ? 'easy'
-        : outcome.mark.verdict
+    : outcome.overridden
+      ? 'counted'
+      : outcome.mark === null
+        ? 'revealed'
+        : outcome.rating === 4
+          ? 'easy'
+          : outcome.mark.verdict
   const markStyle = markKey ? MARK_STYLE[markKey] : null
+  // Offer the override only where the checker may have been too harsh: a typed
+  // answer it didn't accept, not a card that was simply revealed.
+  const canOverride =
+    !!outcome && !outcome.overridden && outcome.mark !== null && outcome.mark.verdict !== 'exact'
 
   return (
     <div>
@@ -376,7 +423,7 @@ export default function ReviewSession({
           <div className="mt-6 border-t border-white/10 pt-6">
             <p className={`text-sm font-semibold ${markStyle?.className}`}>
               {markStyle?.label}
-              {outcome.mark && outcome.mark.verdict !== 'exact' && (
+              {!outcome.overridden && outcome.mark && outcome.mark.verdict !== 'exact' && (
                 <span className="ml-2 font-normal text-slate-400">
                   {Math.round(outcome.mark.similarity * 100)}% match
                 </span>
@@ -385,7 +432,16 @@ export default function ReviewSession({
             {outcome.mark && outcome.mark.verdict !== 'exact' && (
               <p className="mt-1 text-sm text-slate-500">
                 you wrote <span className="text-slate-300">{answer}</span>
+                {outcome.overridden && ' — accepted on this card from now on'}
               </p>
+            )}
+            {canOverride && (
+              <button
+                onClick={override}
+                className="mt-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/20"
+              >
+                I was right — count it
+              </button>
             )}
 
             <div className="mt-3 flex items-center justify-center gap-2">

@@ -89,3 +89,26 @@ describe('optional sentence openers', () => {
     expect(gradeAnswer("I'm sorry", "I'm").verdict).toBe('wrong')
   })
 })
+
+describe('short answers are minimal pairs, not typos', () => {
+  it('marks a one-letter miss on a short word wrong', () => {
+    expect(gradeAnswer('å bo', 'bok', true).verdict).toBe('wrong')
+    expect(gradeAnswer('hun', 'han', true).verdict).toBe('wrong')
+    expect(gradeAnswer('en mann', 'menn', true).verdict).toBe('wrong')
+  })
+
+  it('still forgives a typo in a longer word', () => {
+    expect(gradeAnswer('expensive', 'expensiv').verdict).toBe('close')
+  })
+})
+
+describe('vouched-for alternatives', () => {
+  it('accepts an answer the learner recorded', () => {
+    expect(gradeAnswer('because', 'since').verdict).toBe('wrong')
+    expect(gradeAnswer('because', 'since', false, ['since']).verdict).toBe('exact')
+  })
+
+  it('normalises the recorded answer too', () => {
+    expect(gradeAnswer('a road', 'Street!', false, ['a street']).verdict).toBe('exact')
+  })
+})

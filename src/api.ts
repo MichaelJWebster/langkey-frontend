@@ -62,6 +62,7 @@ export interface Card {
   is_new: boolean
   due: string
   item: Item
+  alternatives: string[] // answers the learner has vouched for on this card
 }
 
 export interface Queue {
@@ -193,6 +194,12 @@ export const postAttempt = (attempt: {
   speed?: number
   answer?: string
 }) => request<{ status: string }>('/api/v1/exercises/attempts', { method: 'POST', body: JSON.stringify(attempt) })
+
+export const addAlternative = (cardId: string, answer: string) =>
+  request<{ status: string }>('/api/v1/reviews/alternatives', {
+    method: 'POST',
+    body: JSON.stringify({ card_id: cardId, answer }),
+  })
 
 export const submitReview = (cardId: string, rating: 1 | 2 | 3 | 4) =>
   request<ReviewResult>('/api/v1/reviews', {

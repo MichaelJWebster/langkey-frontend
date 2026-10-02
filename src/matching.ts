@@ -97,18 +97,38 @@ export interface AnswerMark {
  * Grade a typed guess against a deck translation. Norwegian answers fold
  * diacritics so "a" for "å" still counts as exact.
  */
-export function gradeAnswer(translation: string, guess: string, norwegian = false): AnswerMark {
+export function gradeAnswer(
+  translation: string,
+  guess: string,
+  norwegian = false,
+  /** Answers the learner has vouched for on this card; treated as exact. */
+  alternatives: string[] = [],
+): AnswerMark {
   // Both sides lose their optional openers, so "sorry" answers "I'm sorry".
   const normalise = (s: string) =>
     (norwegian ? fold(clean(s)) : clean(s)).replace(LEADERS, '').replace(FILLERS, '')
   const got = normalise(guess)
+
+  for (const accepted of alternatives) {
+    if (normalise(accepted) === got) return { verdict: 'exact', similarity: 1, best: accepted }
+  }
+
   let best = { similarity: 0, best: translation }
   for (const accepted of acceptedAnswers(translation)) {
     const sim = similarity(normalise(accepted), got)
     if (sim > best.similarity) best = { similarity: sim, best: accepted }
   }
+
+  // Short words are minimal pairs, not typos: one edit turns "bo" into "bok"
+  // and "hun" into "han", so near-misses only count on longer answers.
+  const shortest = Math.min(got.length, normalise(best.best).length)
+  const nearMissAllowed = shortest >= 5
   const verdict: Verdict =
-    best.similarity >= 0.95 ? 'exact' : best.similarity >= 0.7 ? 'close' : 'wrong'
+    best.similarity >= 0.95
+      ? 'exact'
+      : nearMissAllowed && best.similarity >= 0.7
+        ? 'close'
+        : 'wrong'
   return { verdict, similarity: best.similarity, best: best.best }
 }
 
