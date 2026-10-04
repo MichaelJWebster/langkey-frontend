@@ -38,6 +38,7 @@ export interface Gloss {
 }
 
 export interface Example {
+  id: number
   sentence: string
   translation: string
   audio_url: string
@@ -200,6 +201,72 @@ export const addAlternative = (cardId: string, answer: string) =>
     method: 'POST',
     body: JSON.stringify({ card_id: cardId, answer }),
   })
+
+export interface Recording {
+  id: string
+  item_id: number
+  example_id: number | null
+  content_type: string
+  size_bytes: number
+  duration_ms: number | null
+  created_at: string
+}
+
+export async function uploadRecording(opts: {
+  itemId: number
+  exampleId?: number | null
+  blob: Blob
+  mimeType: string
+  durationMs: number
+}): Promise<Recording> {
+  const form = new FormData()
+  form.set('item_id', String(opts.itemId))
+  if (opts.exampleId != null) form.set('example_id', String(opts.exampleId))
+  form.set('duration_ms', String(opts.durationMs))
+  // The filename is only for readability in the bucket; the type drives playback.
+  form.set('audio', new File([opts.blob], 'take', { type: opts.mimeType }))
+
+  const token = getToken()
+  // No Content-Type header: the browser must set the multipart boundary.
+  const resp = await fetch('/api/v1/recordings', {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  })
+  if (!resp.ok) {
+    if (resp.status === 401) clearToken()
+    const body = await resp.json().catch(() => null)
+    throw new Error(typeof body?.detail === 'string' ? body.detail : 'Upload failed')
+  }
+  return resp.json()
+}
+
+export const fetchRecordings = (itemId: number, exampleId?: number | null) => {
+  const params = new URLSearchParams({ item_id: String(itemId) })
+  if (exampleId != null) params.set('example_id', String(exampleId))
+  return request<Recording[]>(`/api/v1/recordings?${params}`)
+}
+
+export const deleteRecording = (id: string) =>
+  fetch(`/api/v1/recordings/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${getToken() ?? ''}` },
+  }).then((r) => {
+    if (!r.ok) throw new Error('Could not delete the recording')
+  })
+
+/**
+ * Fetch a stored recording as an object URL. <audio> cannot send our bearer
+ * token, so the bytes come through fetch() and are played from a blob.
+ */
+export async function recordingObjectUrl(id: string): Promise<string> {
+  const token = getToken()
+  const resp = await fetch(`/api/v1/recordings/${id}/audio`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!resp.ok) throw new Error('Could not load the recording')
+  return URL.createObjectURL(await resp.blob())
+}
 
 export const submitReview = (cardId: string, rating: 1 | 2 | 3 | 4) =>
   request<ReviewResult>('/api/v1/reviews', {

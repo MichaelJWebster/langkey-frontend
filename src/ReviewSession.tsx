@@ -11,6 +11,7 @@ import {
 import DirectionBanner from './Flags'
 import { gradeAnswer, ratingFor, type AnswerMark } from './matching'
 import { canSpeak, speak } from './speech'
+import RecordButton from './RecordButton'
 
 const SPECIAL_CHARS: { char: string; shortcut: string }[] = [
   { char: 'æ', shortcut: "⌥'" },
@@ -368,7 +369,16 @@ export default function ReviewSession({
 
         <div className="mt-6 flex items-center justify-center gap-2">
           <p className="text-3xl font-semibold tracking-tight">{prompt}</p>
-          {isRecognition && <SpeakButton text={current.item.source_text} audioUrl={current.item.audio_url} />}
+          {isRecognition && (
+            <>
+              <SpeakButton text={current.item.source_text} audioUrl={current.item.audio_url} />
+              <RecordButton
+                itemId={current.item.id}
+                text={current.item.source_text}
+                referenceUrl={current.item.audio_url}
+              />
+            </>
+          )}
         </div>
         {current.item.pos && (
           <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">{current.item.pos}</p>
@@ -446,7 +456,16 @@ export default function ReviewSession({
 
             <div className="mt-3 flex items-center justify-center gap-2">
               <p className="text-2xl text-slate-200">{expected}</p>
-              {!isRecognition && <SpeakButton text={current.item.source_text} audioUrl={current.item.audio_url} />}
+              {!isRecognition && (
+                <>
+                  <SpeakButton text={current.item.source_text} audioUrl={current.item.audio_url} />
+                  <RecordButton
+                    itemId={current.item.id}
+                    text={current.item.source_text}
+                    referenceUrl={current.item.audio_url}
+                  />
+                </>
+              )}
             </div>
 
             <ul className="mt-5 space-y-3 text-left">
@@ -456,6 +475,13 @@ export default function ReviewSession({
                   <div>
                     <p className="text-slate-300">{ex.sentence}</p>
                     <p className="text-sm text-slate-500">{ex.translation}</p>
+                    <RecordButton
+                      itemId={current.item.id}
+                      exampleId={ex.id}
+                      text={ex.sentence}
+                      referenceUrl={ex.audio_url}
+                      className="mt-1"
+                    />
                   </div>
                 </li>
               ))}
