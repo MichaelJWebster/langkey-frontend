@@ -51,6 +51,13 @@ function describe(status: number): string {
 let currentPlayer: HTMLAudioElement | null = null
 let currentObjectUrl: string | null = null
 
+// Every play attempt takes a token, and anything newer invalidates it.
+// Loading a clip is asynchronous, so between the request and the player
+// existing there is nothing for stopSpeech() to stop -- two overlapping calls
+// would both reach play() and the clips would stack up. That happens on mount
+// (StrictMode invokes effects twice) and whenever a speed chip is pressed.
+let playToken = 0
+
 function releaseCurrent(): void {
   if (currentObjectUrl) {
     URL.revokeObjectURL(currentObjectUrl)
@@ -60,6 +67,7 @@ function releaseCurrent(): void {
 }
 
 export function stopSpeech(): void {
+  playToken += 1 // abandon any clip still loading
   currentPlayer?.pause()
   releaseCurrent()
 }
@@ -78,6 +86,9 @@ export function stopSpeech(): void {
  */
 export async function speak(_text: string, audioUrl?: string | null): Promise<void> {
   stopSpeech()
+  const token = playToken
+  const superseded = () => token !== playToken
+
   if (!audioUrl) {
     report({ url: '', status: 0, message: 'No audio is available for this text.' })
     return
@@ -86,15 +97,18 @@ export async function speak(_text: string, audioUrl?: string | null): Promise<vo
   let blob: Blob
   try {
     const resp = await fetch(audioUrl)
+    if (superseded()) return
     if (!resp.ok) {
       report({ url: audioUrl, status: resp.status, message: describe(resp.status) })
       return
     }
     blob = await resp.blob()
   } catch {
+    if (superseded()) return
     report({ url: audioUrl, status: 0, message: describe(0) })
     return
   }
+  if (superseded()) return
 
   const objectUrl = URL.createObjectURL(blob)
   const player = new Audio(objectUrl)
@@ -109,6 +123,12 @@ export async function speak(_text: string, audioUrl?: string | null): Promise<vo
 
   try {
     await player.play()
+    if (superseded()) {
+      // Something newer started while this was handed to the player.
+      player.pause()
+      URL.revokeObjectURL(objectUrl)
+      return
+    }
     // A previous failure is stale once something plays.
     if (lastFailure) clearAudioFailure()
   } catch {

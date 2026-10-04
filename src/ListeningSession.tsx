@@ -123,14 +123,18 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
     }
   }, [current, scale])
 
-  // Try to start each clip automatically; fall back to the play button when
-  // the browser wants a fresh gesture.
+  // Autoplay once per exercise. Deliberately keyed on `current` alone: `play`
+  // changes identity whenever the chosen speed does, so including it made a
+  // speed chip fire twice -- once from its own handler and once from this
+  // effect re-running -- and the two clips played over each other.
+  const playRef = useRef(play)
+  playRef.current = play
   useEffect(() => {
-    if (current) play()
+    if (current) playRef.current()
     // Stop any clip still playing when the exercise changes or the session
     // closes, so audio never overlaps the next one.
     return stopSpeech
-  }, [current, play])
+  }, [current])
 
   const finishExercise = useCallback(
     (res: Result, answered: string | null, mark: number) => {
