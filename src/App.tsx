@@ -1,3 +1,4 @@
+import AudioAlert from './AudioAlert'
 import { useState, type FormEvent } from 'react'
 import { clearToken, getToken, login } from './api'
 import Dashboard from './Dashboard'
@@ -15,6 +16,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen text-slate-100 antialiased" style={AURORA_BG}>
+      <AudioAlert />
       <div className="mx-auto flex min-h-screen w-full flex-col justify-center px-4 py-10 md:w-2/3 md:px-0">
         <header className="mb-8 text-center">
           <div className="mb-2 text-5xl">🗝️</div>

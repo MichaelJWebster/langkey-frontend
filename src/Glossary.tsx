@@ -72,7 +72,7 @@ export default function Glossary({ onBack }: { onBack: () => void }) {
                 <button
                   type="button"
                   aria-label={`Speak: ${e.word}`}
-                  onClick={() => speak(e.word, e.audio_url)}
+                  onClick={() => void speak(e.word, e.audio_url)}
                   className="shrink-0 rounded-full p-1 text-slate-400 transition hover:bg-white/10 hover:text-teal-300"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">

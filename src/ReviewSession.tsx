@@ -10,7 +10,7 @@ import {
 } from './api'
 import DirectionBanner from './Flags'
 import { gradeAnswer, ratingFor, type AnswerMark } from './matching'
-import { canSpeak, speak } from './speech'
+import { speak } from './speech'
 import RecordButton from './RecordButton'
 
 const SPECIAL_CHARS: { char: string; shortcut: string }[] = [
@@ -20,14 +20,13 @@ const SPECIAL_CHARS: { char: string; shortcut: string }[] = [
 ]
 
 function SpeakButton({ text, audioUrl, className = '' }: { text: string; audioUrl?: string; className?: string }) {
-  if (!canSpeak()) return null
   return (
     <button
       type="button"
       aria-label={`Speak: ${text}`}
       onClick={(e) => {
         e.stopPropagation()
-        speak(text, audioUrl)
+        void speak(text, audioUrl)
       }}
       className={`inline-flex items-center justify-center rounded-full p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-teal-300 ${className}`}
     >
@@ -242,7 +241,7 @@ export default function ReviewSession({
       } else if (e.key === 'Escape') {
         onFinish()
       } else if (e.key === 's' && !(e.target instanceof HTMLInputElement)) {
-        speak(current.item.source_text, current.item.audio_url)
+        void speak(current.item.source_text, current.item.audio_url)
       }
     }
     window.addEventListener('keydown', onKey)

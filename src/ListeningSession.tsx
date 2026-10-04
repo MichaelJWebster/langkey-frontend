@@ -117,9 +117,9 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
     if (current.kind === 'dictation') {
       const chosen = scale ?? current.suggested_scale
       const speed = current.speeds.find((s) => s.scale === chosen) ?? current.speeds[0]
-      speak(current.target, speed.url)
+      void speak(current.target, speed.url)
     } else {
-      speak(current.word, current.audio_url)
+      void speak(current.word, current.audio_url)
     }
   }, [current, scale])
 
@@ -349,7 +349,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                   key={sp.scale}
                   onClick={() => {
                     setScale(sp.scale)
-                    speak(current.target, sp.url)
+                    void speak(current.target, sp.url)
                   }}
                   className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition ${
                     active
