@@ -204,7 +204,7 @@ export default function RecordButton({
             }}
             className="rounded-full border border-teal-400/25 bg-teal-400/10 px-2 py-0.5 text-[11px] font-medium text-teal-300 transition hover:bg-teal-400/20"
           >
-            ▸ Reference
+            ▸ Slow reference
           </button>
         </>
       )}

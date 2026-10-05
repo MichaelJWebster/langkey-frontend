@@ -374,7 +374,7 @@ export default function ReviewSession({
               <RecordButton
                 itemId={current.item.id}
                 text={current.item.source_text}
-                referenceUrl={current.item.audio_url}
+                referenceUrl={current.item.copy_audio_url}
               />
             </>
           )}
@@ -461,7 +461,7 @@ export default function ReviewSession({
                   <RecordButton
                     itemId={current.item.id}
                     text={current.item.source_text}
-                    referenceUrl={current.item.audio_url}
+                    referenceUrl={current.item.copy_audio_url}
                   />
                 </>
               )}
@@ -478,7 +478,7 @@ export default function ReviewSession({
                       itemId={current.item.id}
                       exampleId={ex.id}
                       text={ex.sentence}
-                      referenceUrl={ex.audio_url}
+                      referenceUrl={ex.copy_audio_url}
                       className="mt-1"
                     />
                   </div>
