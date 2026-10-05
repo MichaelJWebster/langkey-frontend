@@ -5,6 +5,7 @@ import {
   postAttempt,
   submitReview,
   type Card,
+  type CopySpeed,
   type Gloss,
   type QueueOptions,
 } from './api'
@@ -12,6 +13,77 @@ import DirectionBanner from './Flags'
 import { gradeAnswer, ratingFor, type AnswerMark } from './matching'
 import { speak } from './speech'
 import RecordButton from './RecordButton'
+
+// The imitation ladder, slowest first, matching PRONUNCIATION_SCALES on the
+// server. Labels rather than numbers: 3.4 means nothing to a learner, and the
+// measured rate (2.63 syl/s against Michael's own 3.96) is what the words are
+// standing in for.
+const SPEED_LABELS: Record<string, string> = {
+  '4': 'slowest',
+  '3.4': 'very slow',
+  '2.8': 'slow',
+  '2.2': 'easier',
+  '1.6': 'natural',
+}
+const SPEED_KEY = 'langkey.copySpeed'
+
+function loadSpeed(): number | null {
+  try {
+    const raw = localStorage.getItem(SPEED_KEY)
+    return raw === null ? null : Number(raw)
+  } catch {
+    return null // private window, or site data blocked
+  }
+}
+
+function saveSpeed(scale: number) {
+  try {
+    localStorage.setItem(SPEED_KEY, String(scale))
+  } catch {
+    /* the choice just does not survive the session */
+  }
+}
+
+/** The chosen rung for this text, falling back to the server's default. */
+function speedUrl(speeds: CopySpeed[], scale: number | null, fallback: string): string {
+  if (scale === null) return fallback
+  return speeds.find((s) => s.scale === scale)?.url ?? fallback
+}
+
+function SpeedChips({
+  speeds,
+  scale,
+  onPick,
+}: {
+  speeds: CopySpeed[]
+  scale: number | null
+  onPick: (scale: number) => void
+}) {
+  if (speeds.length === 0) return null
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5">
+      <span className="mr-0.5 text-[11px] text-slate-500">Copy at</span>
+      {speeds.map((sp) => {
+        const active = scale === null ? sp.scale === 3.4 : scale === sp.scale
+        return (
+          <button
+            key={sp.scale}
+            type="button"
+            onClick={() => onPick(sp.scale)}
+            aria-pressed={active}
+            className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition ${
+              active
+                ? 'border-teal-400 bg-teal-400/10 text-teal-300'
+                : 'border-white/15 text-slate-400 hover:border-teal-400/50 hover:text-teal-300'
+            }`}
+          >
+            {SPEED_LABELS[String(sp.scale)] ?? String(sp.scale)}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 const SPECIAL_CHARS: { char: string; shortcut: string }[] = [
   { char: 'æ', shortcut: "⌥'" },
@@ -114,8 +186,16 @@ export default function ReviewSession({
     overridden?: boolean
   } | null>(null)
   const [glossOpen, setGlossOpen] = useState(false)
+  // Remembered across sessions: the pace that suits you is a standing
+  // preference, not a per-card one.
+  const [copyScale, setCopyScale] = useState<number | null>(loadSpeed)
   const [score, setScore] = useState({ right: 0, near: 0, total: 0 })
   const [error, setError] = useState<string | null>(null)
+
+  const pickSpeed = useCallback((scale: number) => {
+    setCopyScale(scale)
+    saveSpeed(scale)
+  }, [])
   const inputRef = useRef<HTMLInputElement>(null)
   const askedAt = useRef<number>(Date.now())
   // Cards rated Again/Hard come due again within the sitting; requeue them locally.
@@ -241,12 +321,15 @@ export default function ReviewSession({
       } else if (e.key === 'Escape') {
         onFinish()
       } else if (e.key === 's' && !(e.target instanceof HTMLInputElement)) {
-        void speak(current.item.source_text, current.item.copy_audio_url)
+        void speak(
+          current.item.source_text,
+          speedUrl(current.item.copy_speeds, copyScale, current.item.copy_audio_url),
+        )
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [current, outcome, check, advance, onFinish])
+  }, [current, outcome, check, advance, onFinish, copyScale])
 
   function insertChar(ch: string) {
     const el = inputRef.current
@@ -370,15 +453,21 @@ export default function ReviewSession({
           <p className="text-3xl font-semibold tracking-tight">{prompt}</p>
           {isRecognition && (
             <>
-              <SpeakButton text={current.item.source_text} audioUrl={current.item.copy_audio_url} />
+              <SpeakButton
+                text={current.item.source_text}
+                audioUrl={speedUrl(current.item.copy_speeds, copyScale, current.item.copy_audio_url)}
+              />
               <RecordButton
                 itemId={current.item.id}
                 text={current.item.source_text}
-                referenceUrl={current.item.copy_audio_url}
+                referenceUrl={speedUrl(current.item.copy_speeds, copyScale, current.item.copy_audio_url)}
               />
             </>
           )}
         </div>
+        {isRecognition && (
+          <SpeedChips speeds={current.item.copy_speeds} scale={copyScale} onPick={pickSpeed} />
+        )}
         {current.item.pos && (
           <p className="mt-1 text-xs uppercase tracking-wide text-slate-500">{current.item.pos}</p>
         )}
@@ -457,20 +546,29 @@ export default function ReviewSession({
               <p className="text-2xl text-slate-200">{expected}</p>
               {!isRecognition && (
                 <>
-                  <SpeakButton text={current.item.source_text} audioUrl={current.item.copy_audio_url} />
+                  <SpeakButton
+                    text={current.item.source_text}
+                    audioUrl={speedUrl(current.item.copy_speeds, copyScale, current.item.copy_audio_url)}
+                  />
                   <RecordButton
                     itemId={current.item.id}
                     text={current.item.source_text}
-                    referenceUrl={current.item.copy_audio_url}
+                    referenceUrl={speedUrl(current.item.copy_speeds, copyScale, current.item.copy_audio_url)}
                   />
                 </>
               )}
             </div>
 
+            <SpeedChips speeds={current.item.copy_speeds} scale={copyScale} onPick={pickSpeed} />
+
             <ul className="mt-5 space-y-3 text-left">
               {current.item.examples.map((ex) => (
                 <li key={ex.sentence} className="flex items-start gap-1.5">
-                  <SpeakButton text={ex.sentence} audioUrl={ex.copy_audio_url} className="mt-0.5 shrink-0" />
+                  <SpeakButton
+                    text={ex.sentence}
+                    audioUrl={speedUrl(ex.copy_speeds, copyScale, ex.copy_audio_url)}
+                    className="mt-0.5 shrink-0"
+                  />
                   <div>
                     <p className="text-slate-300">{ex.sentence}</p>
                     <p className="text-sm text-slate-500">{ex.translation}</p>
@@ -478,7 +576,7 @@ export default function ReviewSession({
                       itemId={current.item.id}
                       exampleId={ex.id}
                       text={ex.sentence}
-                      referenceUrl={ex.copy_audio_url}
+                      referenceUrl={speedUrl(ex.copy_speeds, copyScale, ex.copy_audio_url)}
                       className="mt-1"
                     />
                   </div>

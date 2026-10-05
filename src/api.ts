@@ -37,6 +37,11 @@ export interface Gloss {
   translation: string
 }
 
+export interface CopySpeed {
+  scale: number
+  url: string
+}
+
 export interface Example {
   id: number
   sentence: string
@@ -45,6 +50,7 @@ export interface Example {
   // The clip to imitate: clearest voice, slowed to a copyable rate. Separate
   // from audio_url, which varies the speaker for listening practice.
   copy_audio_url: string
+  copy_speeds: CopySpeed[]
   // Deck words in the sentence not yet established (headword excluded).
   gloss: Gloss[]
 }
@@ -58,6 +64,7 @@ export interface Item {
   cefr_level: string
   audio_url: string
   copy_audio_url: string
+  copy_speeds: CopySpeed[]
   examples: Example[]
 }
 
