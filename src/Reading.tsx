@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   fetchTextPage,
   fetchTexts,
@@ -7,11 +7,13 @@ import {
   type TextSentence,
   type TextSummary,
 } from './api'
+import { categorise, type Category } from './categories'
 
-// --- Library list ------------------------------------------------------------
+// --- Shell -------------------------------------------------------------------
 
 export default function Reading({ onBack }: { onBack: () => void }) {
   const [texts, setTexts] = useState<TextSummary[] | null>(null)
+  const [kind, setKind] = useState<string | null>(null)
   const [open, setOpen] = useState<TextSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -21,13 +23,19 @@ export default function Reading({ onBack }: { onBack: () => void }) {
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
   }, [])
 
+  const categories = useMemo(() => categorise(texts ?? []), [texts])
+  const current = categories.find((c) => c.kind === kind) ?? null
+
+  // Escape goes back one level at a time: reader -> category -> index -> out.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !open) onBack()
+      if (e.key !== 'Escape' || open) return
+      if (kind) setKind(null)
+      else onBack()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onBack, open])
+  }, [onBack, open, kind])
 
   if (open) return <Reader text={open} onBack={() => setOpen(null)} />
 
@@ -35,16 +43,18 @@ export default function Reading({ onBack }: { onBack: () => void }) {
     <div>
       <div className="mb-4 flex items-center justify-between text-xs text-slate-400">
         <button
-          onClick={onBack}
-          title="Back to dashboard (Esc)"
+          onClick={() => (current ? setKind(null) : onBack())}
+          title={current ? 'Back to categories (Esc)' : 'Back to dashboard (Esc)'}
           className="rounded-full px-1.5 py-0.5 font-medium transition hover:bg-white/10 hover:text-slate-200"
         >
-          ← Back
+          {current ? '← Categories' : '← Back'}
         </button>
         <span>Interleaved Norwegian–English reading</span>
       </div>
       <div className="rounded-2xl border border-white/10 bg-white/5 p-8">
-        <h1 className="text-xl font-semibold">📖 Reading</h1>
+        <h1 className="text-xl font-semibold">
+          📖 Reading{current && <span className="text-slate-400"> · {current.label}</span>}
+        </h1>
         {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
         {!texts && !error && <p className="mt-4 text-slate-400">Loading library…</p>}
         {texts && texts.length === 0 && (
@@ -53,35 +63,88 @@ export default function Reading({ onBack }: { onBack: () => void }) {
             prepare_text, import_text).
           </p>
         )}
-        <div className="mt-4 grid gap-3">
-          {texts?.map((t) => {
-            const pct = Math.min(100, Math.round((t.position / t.sentence_count) * 100))
-            return (
-              <button
-                key={t.slug}
-                onClick={() => setOpen(t)}
-                className="rounded-xl border border-white/15 p-4 text-left transition hover:border-sky-400/50 hover:bg-white/10"
-              >
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-medium text-slate-100">{t.title}</span>
-                  <span className="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-xs text-slate-400">
-                    {t.kind}
-                  </span>
-                </div>
-                <p className="mt-0.5 text-sm text-slate-400">{t.author}</p>
-                <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
-                  <div className="h-1.5 w-32 overflow-hidden rounded-full bg-white/10">
-                    <div className="h-full bg-sky-400" style={{ width: `${pct}%` }} />
-                  </div>
-                  {t.position > 0
-                    ? `${pct}% · continue at sentence ${t.position}`
-                    : `${t.sentence_count} sentences`}
-                </div>
-              </button>
-            )
-          })}
-        </div>
+        {current ? (
+          <TextList texts={current.texts} onOpen={setOpen} />
+        ) : (
+          <CategoryIndex categories={categories} onPick={setKind} />
+        )}
       </div>
+    </div>
+  )
+}
+
+// --- Category index ----------------------------------------------------------
+
+function CategoryIndex({
+  categories,
+  onPick,
+}: {
+  categories: Category[]
+  onPick: (kind: string) => void
+}) {
+  if (categories.length === 0) return null
+  return (
+    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      {categories.map((c) => (
+        <button
+          key={c.kind}
+          onClick={() => onPick(c.kind)}
+          className="rounded-xl border border-white/15 p-4 text-left transition hover:border-sky-400/50 hover:bg-white/10"
+        >
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="font-medium text-slate-100">{c.label}</span>
+            <span className="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-xs text-slate-300">
+              {c.texts.length} {c.texts.length === 1 ? 'text' : 'texts'}
+            </span>
+          </div>
+          {c.blurb && <p className="mt-0.5 text-sm text-slate-400">{c.blurb}</p>}
+          <p className="mt-2 text-xs text-slate-500">
+            {c.sentences.toLocaleString()} sentences
+            {c.started > 0 && ` · ${c.started} started`}
+          </p>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// --- Texts in one category ---------------------------------------------------
+
+function TextList({
+  texts,
+  onOpen,
+}: {
+  texts: TextSummary[]
+  onOpen: (t: TextSummary) => void
+}) {
+  return (
+    <div className="mt-4 grid gap-3">
+      {texts.map((t) => {
+        const pct = Math.min(100, Math.round((t.position / t.sentence_count) * 100))
+        return (
+          <button
+            key={t.slug}
+            onClick={() => onOpen(t)}
+            className="rounded-xl border border-white/15 p-4 text-left transition hover:border-sky-400/50 hover:bg-white/10"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-medium text-slate-100">{t.title}</span>
+              {t.title_en && (
+                <span className="shrink-0 text-sm italic text-slate-400">{t.title_en}</span>
+              )}
+            </div>
+            <p className="mt-0.5 text-sm text-slate-400">{t.author}</p>
+            <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+              <div className="h-1.5 w-32 overflow-hidden rounded-full bg-white/10">
+                <div className="h-full bg-sky-400" style={{ width: `${pct}%` }} />
+              </div>
+              {t.position > 0
+                ? `${pct}% · continue at sentence ${t.position}`
+                : `${t.sentence_count} sentences`}
+            </div>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -164,6 +227,9 @@ function Reader({ text, onBack }: { text: TextSummary; onBack: () => void }) {
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-8">
         <h1 className="text-xl font-semibold">{text.title}</h1>
+        {text.title_en && (
+          <p className="text-sm italic text-slate-400">{text.title_en}</p>
+        )}
         <p className="mt-0.5 text-sm text-slate-400">{text.author}</p>
         {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
         {!page && !error && <p className="mt-4 text-slate-400">Loading…</p>}

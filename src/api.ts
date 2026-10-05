@@ -277,6 +277,8 @@ export const submitReview = (cardId: string, rating: 1 | 2 | 3 | 4) =>
 export interface TextSummary {
   slug: string
   title: string
+  /** Null when no translation passed the quality gates; show `title` alone. */
+  title_en: string | null
   author: string | null
   kind: string
   orthography: string
@@ -295,6 +297,7 @@ export interface TextSentence {
 export interface TextPage {
   slug: string
   title: string
+  title_en: string | null
   author: string | null
   from_seq: number
   to_seq: number
