@@ -241,7 +241,7 @@ export default function ReviewSession({
       } else if (e.key === 'Escape') {
         onFinish()
       } else if (e.key === 's' && !(e.target instanceof HTMLInputElement)) {
-        void speak(current.item.source_text, current.item.audio_url)
+        void speak(current.item.source_text, current.item.copy_audio_url)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -370,7 +370,7 @@ export default function ReviewSession({
           <p className="text-3xl font-semibold tracking-tight">{prompt}</p>
           {isRecognition && (
             <>
-              <SpeakButton text={current.item.source_text} audioUrl={current.item.audio_url} />
+              <SpeakButton text={current.item.source_text} audioUrl={current.item.copy_audio_url} />
               <RecordButton
                 itemId={current.item.id}
                 text={current.item.source_text}
@@ -457,7 +457,7 @@ export default function ReviewSession({
               <p className="text-2xl text-slate-200">{expected}</p>
               {!isRecognition && (
                 <>
-                  <SpeakButton text={current.item.source_text} audioUrl={current.item.audio_url} />
+                  <SpeakButton text={current.item.source_text} audioUrl={current.item.copy_audio_url} />
                   <RecordButton
                     itemId={current.item.id}
                     text={current.item.source_text}
@@ -470,7 +470,7 @@ export default function ReviewSession({
             <ul className="mt-5 space-y-3 text-left">
               {current.item.examples.map((ex) => (
                 <li key={ex.sentence} className="flex items-start gap-1.5">
-                  <SpeakButton text={ex.sentence} audioUrl={ex.audio_url} className="mt-0.5 shrink-0" />
+                  <SpeakButton text={ex.sentence} audioUrl={ex.copy_audio_url} className="mt-0.5 shrink-0" />
                   <div>
                     <p className="text-slate-300">{ex.sentence}</p>
                     <p className="text-sm text-slate-500">{ex.translation}</p>
