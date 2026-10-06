@@ -2,7 +2,13 @@
 // M3 step 1: no speech models, just your voice next to the model's.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchRecordings, recordingBlob, uploadRecording } from './api'
+import {
+  fetchRecordings,
+  recordingBlob,
+  transcribeRecording,
+  uploadRecording,
+  type Transcript,
+} from './api'
 import {
   canRecord,
   describeMicError,
@@ -12,6 +18,7 @@ import {
   type Take,
 } from './recording'
 import { play, stop as stopPlaying } from './playback'
+import WordFeedback from './WordFeedback'
 import { speak, stopSpeech } from './speech'
 
 type Status = 'idle' | 'arming' | 'recording' | 'saving' | 'error'
@@ -36,6 +43,10 @@ export default function RecordButton({
   // A take saved in an earlier session, loaded lazily so you can compare
   // against yesterday's attempt rather than only the current one.
   const [saved, setSaved] = useState<{ id: string; blob: Blob } | null>(null)
+  // Null while nothing has been checked, and stays null when no speech
+  // backend is running -- the feature is absent rather than broken.
+  const [transcript, setTranscript] = useState<Transcript | null>(null)
+  const [checking, setChecking] = useState(false)
   const active = useRef<ActiveRecording | null>(null)
 
   const stopPlayback = useCallback(() => {
@@ -59,6 +70,8 @@ export default function RecordButton({
       return null
     })
     setSaved(null)
+    setTranscript(null)
+    setChecking(false)
     setStatus('idle')
     setError(null)
   }, [itemId, exampleId])
@@ -104,7 +117,7 @@ export default function RecordButton({
         })
         // Hear it immediately; the upload happens behind that.
         playTake(fresh.blob, fresh.url)
-        await uploadRecording({
+        const stored = await uploadRecording({
           itemId,
           exampleId,
           blob: fresh.blob,
@@ -112,6 +125,16 @@ export default function RecordButton({
           durationMs: fresh.durationMs,
         })
         setStatus('idle')
+        // Checking is a bonus on top of a saved take: it runs after the take
+        // is safe, and a failure here never loses the recording.
+        setChecking(true)
+        try {
+          setTranscript(await transcribeRecording(stored.id))
+        } catch {
+          setTranscript(null)
+        } finally {
+          setChecking(false)
+        }
       } catch (e) {
         // The take is still playable locally even if storing it failed.
         setStatus('error')
@@ -209,7 +232,13 @@ export default function RecordButton({
       )}
       {recording && <span className="text-[11px] text-rose-300">speak now</span>}
       {status === 'saving' && <span className="text-[11px] text-slate-500">saving…</span>}
+      {checking && <span className="text-[11px] text-slate-500">checking…</span>}
       {error && <span className="text-[11px] text-rose-300">{error}</span>}
+      {transcript && (
+        <span className="w-full basis-full">
+          <WordFeedback transcript={transcript} />
+        </span>
+      )}
     </span>
   )
 }

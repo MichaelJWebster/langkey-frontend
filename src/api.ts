@@ -270,6 +270,41 @@ export const deleteRecording = (id: string) =>
  * Fetch a stored recording as an object URL. <audio> cannot send our bearer
  * token, so the bytes come through fetch() and are played from a blob.
  */
+export interface WordMark {
+  word: string
+  verdict: 'said' | 'slipped' | 'missed'
+  heard: string | null
+}
+
+export interface WordRecord {
+  word: string
+  said: number
+  attempts: number
+  /** True once there are enough attempts for the rate to mean anything. */
+  pattern: boolean
+}
+
+export interface Transcript {
+  text: string
+  model: string
+  target: string
+  words: WordMark[]
+  history: WordRecord[]
+  attempts_for_pattern: number
+}
+
+/** Null when no speech backend is configured — the feature is simply absent. */
+export async function transcribeRecording(id: string): Promise<Transcript | null> {
+  const token = getToken()
+  const resp = await fetch(`/api/v1/recordings/${id}/transcribe`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (resp.status === 503) return null
+  if (!resp.ok) throw new Error('Could not check the recording')
+  return resp.json()
+}
+
 export async function recordingBlob(id: string): Promise<Blob> {
   const token = getToken()
   const resp = await fetch(`/api/v1/recordings/${id}/audio`, {
