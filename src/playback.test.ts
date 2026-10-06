@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalisationGain } from './playback'
+import { DEFAULT_VOLUME, masterGain, normalisationGain } from './playback'
 
 const RATE = 48_000
 
@@ -54,5 +54,28 @@ describe('normalisationGain', () => {
 
   it('survives a clip shorter than one measurement frame', () => {
     expect(normalisationGain(new Float32Array(10), RATE)).toBe(1)
+  })
+})
+
+describe('masterGain', () => {
+  it('puts the old maximum at the middle of the slider', () => {
+    // Michael's requirement: 50% should sound like 100% used to.
+    expect(masterGain(0.5)).toBeCloseTo(1, 6)
+  })
+
+  it('leaves real headroom above it', () => {
+    expect(masterGain(1)).toBeCloseTo(3, 6)
+    expect(dbfs(masterGain(1))).toBeCloseTo(9.54, 1)
+  })
+
+  it('starts at the middle', () => {
+    expect(DEFAULT_VOLUME).toBe(0.5)
+  })
+
+  it('is silent at zero and rises all the way up', () => {
+    expect(masterGain(0)).toBe(0)
+    for (let v = 0.05; v <= 1; v += 0.05) {
+      expect(masterGain(v)).toBeGreaterThan(masterGain(v - 0.05))
+    }
   })
 })

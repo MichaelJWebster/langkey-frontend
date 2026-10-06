@@ -2,7 +2,7 @@
 // reachable from every screen, and remembers where it was left.
 
 import { useEffect, useState } from 'react'
-import { getVolume, onVolumeChange, setVolume } from './playback'
+import { DEFAULT_VOLUME, getVolume, onVolumeChange, setVolume } from './playback'
 
 export default function VolumeControl() {
   const [volume, setLocal] = useState(getVolume)
@@ -16,7 +16,7 @@ export default function VolumeControl() {
 
   function toggleMute() {
     if (muted) {
-      setVolume(beforeMute ?? 1)
+      setVolume(beforeMute ?? DEFAULT_VOLUME)
       setBeforeMute(null)
     } else {
       setBeforeMute(volume)

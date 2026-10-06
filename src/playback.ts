@@ -13,7 +13,23 @@
 // every path falls back to a plain element at master volume rather than
 // failing to play.
 
-const VOLUME_KEY = 'langkey.volume'
+// v2: under the old key a stored 1 meant unity gain, and would now mean 3x.
+const VOLUME_KEY = 'langkey.volume.v2'
+
+// The slider is not the gain. Levelling every clip to TARGET_DBFS left the
+// whole app quieter than Michael wants, so the slider's midpoint reproduces
+// what used to be its maximum and the top half is new headroom: half gives
+// unity, full gives 3x (about +9.5 dB). The curve below is the one that hits
+// both of those exactly.
+const GAIN_AT_FULL = 3
+const VOLUME_CURVE = Math.log2(GAIN_AT_FULL)
+export const DEFAULT_VOLUME = 0.5
+
+/** Output gain for a slider position in 0..1. */
+export function masterGain(position: number): number {
+  if (position <= 0) return 0
+  return (2 * position) ** VOLUME_CURVE
+}
 
 /** Where levelled speech lands. Chosen to leave headroom for the loudest
  *  Piper clips, which already peak near full scale. */
@@ -29,11 +45,11 @@ const listeners = new Set<Listener>()
 function readVolume(): number {
   try {
     const raw = localStorage.getItem(VOLUME_KEY)
-    if (raw === null) return 1
+    if (raw === null) return DEFAULT_VOLUME
     const n = Number(raw)
-    return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1
+    return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : DEFAULT_VOLUME
   } catch {
-    return 1 // private window, or site data blocked
+    return DEFAULT_VOLUME // private window, or site data blocked
   }
 }
 
@@ -50,8 +66,10 @@ export function setVolume(next: number): void {
   } catch {
     /* the setting just does not survive the session */
   }
-  if (master) master.gain.value = volume
-  if (element) element.volume = volume
+  if (master) master.gain.value = masterGain(volume)
+  // The element fallback cannot exceed unity, so the top of the slider is
+  // only reachable through Web Audio. Nothing breaks; it just stops there.
+  if (element) element.volume = Math.min(1, masterGain(volume))
   listeners.forEach((l) => l(volume))
 }
 
@@ -75,8 +93,17 @@ function audioContext(): AudioContext | null {
   try {
     ctx = new Ctx()
     master = ctx.createGain()
-    master.gain.value = volume
-    master.connect(ctx.destination)
+    master.gain.value = masterGain(volume)
+    // A safety limiter, not an effect. At the top of the slider a levelled
+    // clip's peaks would otherwise pass full scale and crackle; this only
+    // engages up there and leaves ordinary levels untouched.
+    const limiter = ctx.createDynamicsCompressor()
+    limiter.threshold.value = -2
+    limiter.knee.value = 0
+    limiter.ratio.value = 20
+    limiter.attack.value = 0.003
+    limiter.release.value = 0.1
+    master.connect(limiter).connect(ctx.destination)
     return ctx
   } catch {
     return null
@@ -155,7 +182,7 @@ export function stop(): void {
 function playThroughElement(blob: Blob, mine: number): Promise<void> {
   const url = URL.createObjectURL(blob)
   const audio = new Audio(url)
-  audio.volume = volume
+  audio.volume = Math.min(1, masterGain(volume))
   element = audio
   elementUrl = url
   const done = () => {
