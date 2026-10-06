@@ -2,7 +2,7 @@
 // M3 step 1: no speech models, just your voice next to the model's.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchRecordings, recordingObjectUrl, uploadRecording } from './api'
+import { fetchRecordings, recordingBlob, uploadRecording } from './api'
 import {
   canRecord,
   describeMicError,
@@ -11,6 +11,7 @@ import {
   type ActiveRecording,
   type Take,
 } from './recording'
+import { play, stop as stopPlaying } from './playback'
 import { speak, stopSpeech } from './speech'
 
 type Status = 'idle' | 'arming' | 'recording' | 'saving' | 'error'
@@ -34,13 +35,11 @@ export default function RecordButton({
   const [take, setTake] = useState<Take | null>(null)
   // A take saved in an earlier session, loaded lazily so you can compare
   // against yesterday's attempt rather than only the current one.
-  const [savedUrl, setSavedUrl] = useState<string | null>(null)
+  const [saved, setSaved] = useState<{ id: string; blob: Blob } | null>(null)
   const active = useRef<ActiveRecording | null>(null)
-  const player = useRef<HTMLAudioElement | null>(null)
 
   const stopPlayback = useCallback(() => {
-    player.current?.pause()
-    player.current = null
+    stopPlaying()
     stopSpeech()
   }, [])
 
@@ -59,10 +58,7 @@ export default function RecordButton({
       releaseTake(previous)
       return null
     })
-    setSavedUrl((previous) => {
-      if (previous) URL.revokeObjectURL(previous)
-      return null
-    })
+    setSaved(null)
     setStatus('idle')
     setError(null)
   }, [itemId, exampleId])
@@ -70,16 +66,11 @@ export default function RecordButton({
   // Load the most recent earlier take, if there is one.
   useEffect(() => {
     let cancelled = false
-    let created: string | null = null
     fetchRecordings(itemId, exampleId)
       .then(async (list) => {
         if (cancelled || list.length === 0) return
-        created = await recordingObjectUrl(list[0].id)
-        if (cancelled) {
-          URL.revokeObjectURL(created)
-          return
-        }
-        setSavedUrl(created)
+        const blob = await recordingBlob(list[0].id)
+        if (!cancelled) setSaved({ id: list[0].id, blob })
       })
       .catch(() => {
         /* An earlier take is a nicety; failing to find one is not an error. */
@@ -89,14 +80,12 @@ export default function RecordButton({
     }
   }, [itemId, exampleId])
 
-  const playUrl = useCallback(
-    (url: string) => {
+  // Levelled against the reference by playback.ts: a quiet take played back at
+  // its recorded level next to a Piper clip is hard to compare at all.
+  const playTake = useCallback(
+    (blob: Blob, key: string) => {
       stopPlayback()
-      const audio = new Audio(url)
-      player.current = audio
-      audio.play().catch(() => {
-        if (player.current === audio) player.current = null
-      })
+      void play(blob, key).catch(() => undefined)
     },
     [stopPlayback],
   )
@@ -113,7 +102,8 @@ export default function RecordButton({
           releaseTake(previous)
           return fresh
         })
-        playUrl(fresh.url) // hear it immediately; the upload happens behind that
+        // Hear it immediately; the upload happens behind that.
+        playTake(fresh.blob, fresh.url)
         await uploadRecording({
           itemId,
           exampleId,
@@ -143,7 +133,11 @@ export default function RecordButton({
 
   if (!canRecord()) return null
 
-  const current = take?.url ?? savedUrl
+  const current = take
+    ? { blob: take.blob, key: take.url }
+    : saved
+      ? { blob: saved.blob, key: saved.id }
+      : null
   const recording = status === 'recording'
 
   return (
@@ -190,7 +184,7 @@ export default function RecordButton({
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              playUrl(current)
+              playTake(current.blob, current.key)
             }}
             className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-slate-300 transition hover:bg-white/10"
           >

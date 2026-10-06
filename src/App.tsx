@@ -1,4 +1,5 @@
 import AudioAlert from './AudioAlert'
+import VolumeControl from './VolumeControl'
 import { useState, type FormEvent } from 'react'
 import { clearToken, getToken, login } from './api'
 import Dashboard from './Dashboard'
@@ -18,7 +19,12 @@ export default function App() {
     <div className="min-h-screen text-slate-100 antialiased" style={AURORA_BG}>
       <AudioAlert />
       <div className="mx-auto flex min-h-screen w-full flex-col justify-center px-4 py-10 md:w-2/3 md:px-0">
-        <header className="mb-8 text-center">
+        <header className="relative mb-8 text-center">
+          {authed && (
+            <div className="mb-3 flex justify-end sm:absolute sm:right-0 sm:top-0 sm:mb-0">
+              <VolumeControl />
+            </div>
+          )}
           <div className="mb-2 text-5xl">🗝️</div>
           <h1 className="bg-gradient-to-r from-teal-300 via-indigo-300 to-pink-300 bg-clip-text text-3xl font-semibold tracking-tight text-transparent">
             LangKey

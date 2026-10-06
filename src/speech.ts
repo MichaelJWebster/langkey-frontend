@@ -8,6 +8,8 @@
 // wrong voice while appearing to work. A clip that will not play is an error,
 // and it is reported.
 
+import { play, stop } from './playback'
+
 export type AudioFailure = {
   url: string
   /** HTTP status where we got one; 0 when the request itself failed. */
@@ -47,10 +49,6 @@ function describe(status: number): string {
   return `Audio request failed (${status}).`
 }
 
-// Only one clip at a time: a new play stops whatever is going.
-let currentPlayer: HTMLAudioElement | null = null
-let currentObjectUrl: string | null = null
-
 // Every play attempt takes a token, and anything newer invalidates it.
 // Loading a clip is asynchronous, so between the request and the player
 // existing there is nothing for stopSpeech() to stop -- two overlapping calls
@@ -58,18 +56,9 @@ let currentObjectUrl: string | null = null
 // (StrictMode invokes effects twice) and whenever a speed chip is pressed.
 let playToken = 0
 
-function releaseCurrent(): void {
-  if (currentObjectUrl) {
-    URL.revokeObjectURL(currentObjectUrl)
-    currentObjectUrl = null
-  }
-  currentPlayer = null
-}
-
 export function stopSpeech(): void {
   playToken += 1 // abandon any clip still loading
-  currentPlayer?.pause()
-  releaseCurrent()
+  stop()
 }
 
 /**
@@ -80,7 +69,8 @@ export function stopSpeech(): void {
  * which cannot distinguish an ungenerated clip from a dead object store. The
  * fetch is served from the browser cache on repeat plays, and having the whole
  * clip before starting also removes any chance of the player underrunning
- * mid-word.
+ * mid-word. Playback itself goes through playback.ts, which levels every clip
+ * to a common loudness and applies the master volume.
  *
  * `text` is kept for callers and accessibility; it is no longer spoken.
  */
@@ -110,29 +100,12 @@ export async function speak(_text: string, audioUrl?: string | null): Promise<vo
   }
   if (superseded()) return
 
-  const objectUrl = URL.createObjectURL(blob)
-  const player = new Audio(objectUrl)
-  currentPlayer = player
-  currentObjectUrl = objectUrl
-
-  const done = () => {
-    if (currentPlayer === player) releaseCurrent()
-    else URL.revokeObjectURL(objectUrl)
-  }
-  player.addEventListener('ended', done)
-
   try {
-    await player.play()
-    if (superseded()) {
-      // Something newer started while this was handed to the player.
-      player.pause()
-      URL.revokeObjectURL(objectUrl)
-      return
-    }
+    await play(blob, audioUrl)
+    if (superseded()) return
     // A previous failure is stale once something plays.
     if (lastFailure) clearAudioFailure()
   } catch {
-    done()
     report({ url: audioUrl, status: 0, message: 'The browser refused to play the clip.' })
   }
 }

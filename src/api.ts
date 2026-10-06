@@ -270,13 +270,13 @@ export const deleteRecording = (id: string) =>
  * Fetch a stored recording as an object URL. <audio> cannot send our bearer
  * token, so the bytes come through fetch() and are played from a blob.
  */
-export async function recordingObjectUrl(id: string): Promise<string> {
+export async function recordingBlob(id: string): Promise<Blob> {
   const token = getToken()
   const resp = await fetch(`/api/v1/recordings/${id}/audio`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   })
   if (!resp.ok) throw new Error('Could not load the recording')
-  return URL.createObjectURL(await resp.blob())
+  return resp.blob()
 }
 
 export const submitReview = (cardId: string, rating: 1 | 2 | 3 | 4) =>
