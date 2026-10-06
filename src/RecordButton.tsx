@@ -13,7 +13,7 @@ import {
 } from './recording'
 import { speak, stopSpeech } from './speech'
 
-type Status = 'idle' | 'recording' | 'saving' | 'error'
+type Status = 'idle' | 'arming' | 'recording' | 'saving' | 'error'
 
 export default function RecordButton({
   itemId,
@@ -131,6 +131,7 @@ export default function RecordButton({
     }
 
     stopPlayback()
+    setStatus('arming')
     try {
       active.current = await startRecording()
       setStatus('recording')
@@ -153,7 +154,7 @@ export default function RecordButton({
           e.stopPropagation()
           void toggle()
         }}
-        disabled={status === 'saving'}
+        disabled={status === 'saving' || status === 'arming'}
         aria-label={recording ? `Stop recording: ${text}` : `Record yourself saying: ${text}`}
         title={recording ? 'Stop recording' : 'Record yourself'}
         className={`inline-flex items-center justify-center rounded-full p-1.5 transition disabled:opacity-50 ${
@@ -209,6 +210,10 @@ export default function RecordButton({
         </>
       )}
 
+      {status === 'arming' && (
+        <span className="text-[11px] text-slate-500">opening mic…</span>
+      )}
+      {recording && <span className="text-[11px] text-rose-300">speak now</span>}
       {status === 'saving' && <span className="text-[11px] text-slate-500">saving…</span>}
       {error && <span className="text-[11px] text-rose-300">{error}</span>}
     </span>
