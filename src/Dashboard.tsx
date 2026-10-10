@@ -564,7 +564,7 @@ export function VocabularyScreen({
     <SkillShell
       skill="vocabulary"
       title="Vocabulary"
-      subtitle="choose what to study — decks are 15 cards"
+      subtitle="choose what to study"
       onBack={onBack}
     >
       {overall ? <DeckProgress overall={overall} /> : null}
