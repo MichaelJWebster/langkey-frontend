@@ -62,6 +62,7 @@ export interface Item {
   translation: string
   pos: string | null
   cefr_level: string
+  categories: string[]
   audio_url: string
   copy_audio_url: string
   copy_speeds: CopySpeed[]
@@ -99,12 +100,20 @@ export interface Progress {
   streak_days: number
 }
 
-export interface Topic {
-  topic: string
+export interface Category {
+  category: string
   label: string
+  blurb: string
   total: number
   remaining: number
   established: number // learning count = total - remaining - established
+}
+
+export interface Categories {
+  categories: Category[]
+  // Distinct items across the whole deck. The per-category totals sum to more
+  // than this wherever a word sits in two categories, by design.
+  overall: Category
 }
 
 export interface CardBreakdown {
@@ -139,21 +148,23 @@ export interface CefrProgress {
 }
 
 export interface QueueOptions {
-  focus?: string | null
+  category?: string | null
   direction?: 'recognition' | 'production'
-  mode?: 'tricky'
+  mode?: 'tricky' | 'repeat'
+  limit?: number
 }
 
 export const fetchQueue = (opts: QueueOptions = {}) => {
   const params = new URLSearchParams()
-  if (opts.focus) params.set('focus', opts.focus)
+  if (opts.category) params.set('category', opts.category)
   if (opts.direction) params.set('direction', opts.direction)
   if (opts.mode) params.set('mode', opts.mode)
+  if (opts.limit) params.set('limit', String(opts.limit))
   const qs = params.toString()
   return request<Queue>(`/api/v1/reviews/queue${qs ? `?${qs}` : ''}`)
 }
 export const fetchProgress = () => request<Progress>('/api/v1/progress')
-export const fetchTopics = () => request<Topic[]>('/api/v1/topics')
+export const fetchCategories = () => request<Categories>('/api/v1/categories')
 export const fetchCefr = () => request<CefrProgress>('/api/v1/progress/cefr')
 export const fetchSkillsBreakdown = () => request<SkillsBreakdown>('/api/v1/progress/skills')
 
@@ -162,7 +173,7 @@ export interface GlossaryEntry {
   translation: string
   pos: string | null
   cefr_level: string
-  topic_label: string | null
+  category_labels: string[]
   first_seen_at: string
   via: 'card' | 'example'
   status: 'established' | 'learning' | 'seen'

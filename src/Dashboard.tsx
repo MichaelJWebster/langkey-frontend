@@ -3,7 +3,7 @@ import {
   fetchCefr,
   fetchProgress,
   fetchSkillsBreakdown,
-  fetchTopics,
+  fetchCategories,
   getToken,
   type CardBreakdown,
   type CefrProgress,
@@ -11,7 +11,8 @@ import {
   type Progress,
   type QueueOptions,
   type SkillsBreakdown,
-  type Topic,
+  type Categories,
+  type Category,
 } from './api'
 import Glossary from './Glossary'
 import SpeakingSession from './SpeakingSession'
@@ -190,15 +191,15 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [progress, setProgress] = useState<Progress | null>(null)
   const [cefr, setCefr] = useState<CefrProgress | null>(null)
   const [breakdown, setBreakdown] = useState<SkillsBreakdown | null>(null)
-  const [topics, setTopics] = useState<Topic[]>([])
+  const [categories, setCategories] = useState<Categories | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [screen, setScreen] = useState<SkillId | 'glossary' | null>(null)
 
   const refresh = useCallback(() => {
-    Promise.all([fetchProgress(), fetchTopics(), fetchCefr(), fetchSkillsBreakdown()])
+    Promise.all([fetchProgress(), fetchCategories(), fetchCefr(), fetchSkillsBreakdown()])
       .then(([p, t, c, b]) => {
         setProgress(p)
-        setTopics(t)
+        setCategories(t)
         setCefr(c)
         setBreakdown(b)
       })
@@ -228,7 +229,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
     return (
       <SkillScreen
         skill={screen}
-        topics={topics}
+        categories={categories}
         breakdown={breakdown}
         onBack={backToSkills}
       />
@@ -441,17 +442,23 @@ export function SkillShell({
 
 function SkillScreen({
   skill,
-  topics,
+  categories,
   breakdown,
   onBack,
 }: {
   skill: SkillId
-  topics: Topic[]
+  categories: Categories | null
   breakdown: SkillsBreakdown
   onBack: () => void
 }) {
   if (skill === 'vocabulary') {
-    return <VocabularyScreen topics={topics} breakdown={breakdown.vocabulary} onBack={onBack} />
+    return (
+      <VocabularyScreen
+        categories={categories}
+        breakdown={breakdown.vocabulary}
+        onBack={onBack}
+      />
+    )
   }
   if (skill === 'listening') {
     const l = breakdown.listening
@@ -510,40 +517,48 @@ function SkillScreen({
   )
 }
 
-// --- Vocabulary: pick a category, then run a 15-card deck ----------------------
+// --- Vocabulary: pick a category, then run a deck -----------------------------
 
-const FOCUS_KEY = 'langkey.focus'
+const CATEGORY_KEY = 'langkey.category'
+const REPEAT_DECK = 40
 
-function VocabularyScreen({
-  topics,
+export function VocabularyScreen({
+  categories,
   breakdown,
   onBack,
 }: {
-  topics: Topic[]
+  categories: Categories | null
   breakdown: CardBreakdown
   onBack: () => void
 }) {
-  const [deck, setDeck] = useState<QueueOptions | null>(null)
+  const [deck, setDeck] = useState<{ options: QueueOptions; title: string } | null>(null)
 
   if (deck) {
     return (
-      <SkillShell skill="vocabulary" title="Vocabulary" subtitle="15-card deck" onBack={onBack}>
-        <ReviewSession options={deck} onFinish={() => setDeck(null)} />
+      <SkillShell
+        skill="vocabulary"
+        title="Vocabulary"
+        subtitle={deck.title}
+        onBack={() => setDeck(null)}
+      >
+        <ReviewSession options={deck.options} onFinish={() => setDeck(null)} />
       </SkillShell>
     )
   }
 
-  const startTopic = (topic: string | null) => {
+  const startCategory = (category: string | null, title: string) => {
     try {
-      if (topic) localStorage.setItem(FOCUS_KEY, topic)
-      else localStorage.removeItem(FOCUS_KEY)
+      if (category) localStorage.setItem(CATEGORY_KEY, category)
+      else localStorage.removeItem(CATEGORY_KEY)
     } catch {
       // localStorage unavailable — the choice just won't persist.
     }
-    setDeck({ focus: topic })
+    setDeck({ options: { category }, title })
   }
 
   const tricky = breakdown.learning + breakdown.relearning
+  const met = breakdown.learning + breakdown.relearning + breakdown.established
+  const overall = categories?.overall
 
   return (
     <SkillShell
@@ -552,15 +567,28 @@ function VocabularyScreen({
       subtitle="choose what to study — decks are 15 cards"
       onBack={onBack}
     >
-      <div className="mb-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-        <p className="mb-2 text-xs font-semibold tracking-wide text-slate-400">
-          YOUR {breakdown.unseen + breakdown.learning + breakdown.relearning + breakdown.established}{' '}
-          WORDS
-        </p>
-        <StateBar segments={cardStateSegments(breakdown)} />
-      </div>
+      {overall ? <DeckProgress overall={overall} /> : null}
 
+      <h3 className="mb-2 mt-5 text-xs font-semibold tracking-wide text-slate-400">
+        REPETITION
+      </h3>
       <div className="grid gap-2.5 sm:grid-cols-2">
+        <CategoryCard
+          title="🔁 Keep it all alive"
+          detail={
+            met > 0
+              ? `${REPEAT_DECK} cards from your ${met} met words — the shaky ones come round more often`
+              : 'nothing met yet — start with a category below'
+          }
+          accent="#a78bfa"
+          disabled={met === 0}
+          onClick={() =>
+            setDeck({
+              options: { mode: 'repeat', limit: REPEAT_DECK },
+              title: `repetition — ${REPEAT_DECK} cards, weighted toward your weak words`,
+            })
+          }
+        />
         <CategoryCard
           title="⚡ Tricky words"
           detail={
@@ -570,41 +598,90 @@ function VocabularyScreen({
           }
           accent="#fb7185"
           disabled={tricky === 0}
-          onClick={() => setDeck({ mode: 'tricky' })}
+          onClick={() =>
+            setDeck({ options: { mode: 'tricky' }, title: 'tricky words — nearly-learned first' })
+          }
         />
+      </div>
+
+      <h3 className="mb-2 mt-5 text-xs font-semibold tracking-wide text-slate-400">
+        NEW WORDS
+      </h3>
+      <div className="grid gap-2.5 sm:grid-cols-2">
         <CategoryCard
           title="🎯 By frequency"
-          detail="due reviews plus the next most common words"
+          detail="due reviews plus the next most common words, whatever the subject"
           accent="#38bdf8"
-          onClick={() => startTopic(null)}
+          onClick={() => startCategory(null, 'by frequency — 15 cards')}
         />
-        {topics
-          .filter((t) => t.total > 0)
-          .map((t) => {
-            const learning = Math.max(0, t.total - t.remaining - t.established)
-            return (
-              <button
-                key={t.topic}
-                onClick={() => startTopic(t.topic)}
-                className="rounded-xl border border-white/10 bg-white/5 p-3.5 text-left transition hover:border-white/25 hover:bg-white/10"
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm font-semibold">{t.label}</span>
-                  <span className="shrink-0 text-[11px] text-slate-500">
-                    {t.remaining > 0 ? `${t.remaining} new` : 'all met'}
-                  </span>
-                </div>
-                <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                  <div
-                    style={{ width: `${(t.established / t.total) * 100}%`, background: '#34d399' }}
-                  />
-                  <div style={{ width: `${(learning / t.total) * 100}%`, background: '#fbbf24' }} />
-                </div>
-              </button>
-            )
-          })}
+        {(categories?.categories ?? [])
+          .filter((c) => c.total > 0)
+          .map((c) => (
+            <CategoryProgressCard
+              key={c.category}
+              category={c}
+              onClick={() => startCategory(c.category, `${c.label} — 15 cards`)}
+            />
+          ))}
       </div>
     </SkillShell>
+  )
+}
+
+/** Progress through the whole A1 deck, counting each word once. */
+function DeckProgress({ overall }: { overall: Category }) {
+  const learning = Math.max(0, overall.total - overall.remaining - overall.established)
+  const pct = (n: number) => (overall.total > 0 ? (n / overall.total) * 100 : 0)
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <p className="text-xs font-semibold tracking-wide text-slate-400">
+          {overall.established} OF {overall.total} WORDS ESTABLISHED
+        </p>
+        <p className="text-xs text-slate-500">
+          {Math.round(pct(overall.established))}%
+        </p>
+      </div>
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-white/10">
+        <div style={{ width: `${pct(overall.established)}%`, background: '#34d399' }} />
+        <div style={{ width: `${pct(learning)}%`, background: '#fbbf24' }} />
+      </div>
+      <p className="mt-2 text-[11px] text-slate-500">
+        {learning} in progress · {overall.remaining} not met yet
+      </p>
+    </div>
+  )
+}
+
+function CategoryProgressCard({
+  category,
+  onClick,
+}: {
+  category: Category
+  onClick: () => void
+}) {
+  const learning = Math.max(0, category.total - category.remaining - category.established)
+  const pct = (n: number) => (category.total > 0 ? (n / category.total) * 100 : 0)
+  return (
+    <button
+      onClick={onClick}
+      title={category.blurb}
+      className="rounded-xl border border-white/10 bg-white/5 p-3.5 text-left transition hover:border-white/25 hover:bg-white/10"
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm font-semibold">{category.label}</span>
+        <span className="shrink-0 text-[11px] text-slate-500">
+          {category.established}/{category.total}
+        </span>
+      </div>
+      <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+        <div style={{ width: `${pct(category.established)}%`, background: '#34d399' }} />
+        <div style={{ width: `${pct(learning)}%`, background: '#fbbf24' }} />
+      </div>
+      <div className="mt-1.5 text-[11px] text-slate-500">
+        {category.remaining > 0 ? `${category.remaining} new` : 'all met'}
+      </div>
+    </button>
   )
 }
 

@@ -124,7 +124,7 @@ export default function ReviewSession({
   // "I was right" correct the rating before anything reaches the scheduler.
   const pending = useRef<{ card: Card; rating: 1 | 2 | 3 | 4; mark: AnswerMark | null; answer: string } | null>(null)
 
-  const { focus, direction, mode } = options
+  const { category, direction, mode, limit } = options
   const loadQueue = useCallback(() => {
     setCards(null)
     setIndex(0)
@@ -132,10 +132,10 @@ export default function ReviewSession({
     setOutcome(null)
     setScore({ right: 0, near: 0, total: 0 })
     requeued.current = []
-    fetchQueue({ focus, direction, mode })
+    fetchQueue({ category, direction, mode, limit })
       .then((q) => setCards(q.cards))
       .catch((e) => setError(e.message))
-  }, [focus, direction, mode])
+  }, [category, direction, mode, limit])
 
   useEffect(loadQueue, [loadQueue])
 
