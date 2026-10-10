@@ -14,6 +14,7 @@ import {
   type Topic,
 } from './api'
 import Glossary from './Glossary'
+import SpeakingSession from './SpeakingSession'
 import ListeningSession from './ListeningSession'
 import Reading from './Reading'
 import ReviewSession from './ReviewSession'
@@ -28,7 +29,7 @@ const GRADS: Record<SkillId, [string, string]> = {
   listening: ['#a78bfa', '#f472b6'],
   reading: ['#34d399', '#22d3ee'],
   writing: ['#fbbf24', '#fb7185'],
-  speaking: ['#64748b', '#475569'],
+  speaking: ['#2dd4bf', '#0ea5e9'],
 }
 
 const SUBS: Record<SkillId, string> = {
@@ -36,7 +37,7 @@ const SUBS: Record<SkillId, string> = {
   listening: 'Dictation & word recognition',
   reading: 'Interleaved Norwegian / English texts',
   writing: 'Produce Norwegian from English',
-  speaking: 'Coming soon',
+  speaking: 'Pronunciation & conversation',
 }
 
 const ICONS: Record<SkillId, string> = {
@@ -274,7 +275,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
           </div>
 
           <p className="mt-5 text-center text-xs text-slate-500">
-            {cefr.note} Speaking lights up when LangKey learns to listen to you (milestone M3).
+            {cefr.note} Speaking is scored by NB-Whisper on this machine, so it only
+            works while the speech service is running.
           </p>
         </>
       )}
@@ -315,7 +317,7 @@ function SkillRow({
   cefr?: CefrSkill
   onOpen: () => void
 }) {
-  const enabled = skill !== 'speaking'
+  const enabled = true
   const [c1, c2] = GRADS[skill]
   const pct = cefr?.progress ?? 0
   const nextLevel = cefr?.next_level ?? 'A1'
@@ -491,6 +493,9 @@ function SkillScreen({
       </SkillShell>
     )
   }
+  if (skill === 'speaking') {
+    return <SpeakingScreen onBack={onBack} />
+  }
   // writing
   return (
     <SkillShell
@@ -630,5 +635,73 @@ function CategoryCard({
       <div className="text-sm font-bold">{title}</div>
       <div className="mt-1 text-xs text-slate-400">{detail}</div>
     </button>
+  )
+}
+
+// --- Speaking: pronunciation now, conversation later --------------------------
+
+type SpeakingPart = 'pronunciation' | 'conversation'
+
+function SpeakingScreen({ onBack }: { onBack: () => void }) {
+  const [part, setPart] = useState<SpeakingPart | null>(null)
+
+  if (part === 'pronunciation') {
+    return (
+      <SkillShell
+        skill="speaking"
+        title="Pronunciation"
+        subtitle="say the phrase, and see which sounds landed"
+        onBack={() => setPart(null)}
+      >
+        <SpeakingSession onFinish={() => setPart(null)} />
+      </SkillShell>
+    )
+  }
+
+  if (part === 'conversation') {
+    return (
+      <SkillShell
+        skill="speaking"
+        title="Conversation"
+        subtitle="not built yet"
+        onBack={() => setPart(null)}
+      >
+        <p className="text-slate-300">
+          Turn-by-turn conversation with a Norwegian-speaking character is the last piece of
+          the speaking milestone. It needs the same recording and recognition this section
+          already has, plus a model to answer with — so it comes after pronunciation, not
+          instead of it.
+        </p>
+      </SkillShell>
+    )
+  }
+
+  return (
+    <SkillShell skill="speaking" title="Speaking" subtitle="two ways to practise" onBack={onBack}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          onClick={() => setPart('pronunciation')}
+          className="rounded-xl border border-white/15 p-5 text-left transition hover:border-teal-400/50 hover:bg-white/10"
+        >
+          <span className="font-medium text-slate-100">Pronunciation</span>
+          <p className="mt-1 text-sm text-slate-400">
+            Hear a phrase as slowly as you need, say it back, and see which words came
+            through — with a running record of the sounds that keep slipping.
+          </p>
+        </button>
+        <button
+          onClick={() => setPart('conversation')}
+          className="rounded-xl border border-white/10 p-5 text-left opacity-70 transition hover:border-white/20 hover:bg-white/5"
+        >
+          <span className="font-medium text-slate-300">Conversation</span>
+          <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
+            later
+          </span>
+          <p className="mt-1 text-sm text-slate-500">
+            Talk to a Norwegian-speaking character, turn by turn.
+          </p>
+        </button>
+      </div>
+    </SkillShell>
   )
 }

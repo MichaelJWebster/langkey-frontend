@@ -270,6 +270,26 @@ export const deleteRecording = (id: string) =>
  * Fetch a stored recording as an object URL. <audio> cannot send our bearer
  * token, so the bytes come through fetch() and are played from a blob.
  */
+export interface SpeakingPhrase {
+  item_id: number
+  example_id: number | null
+  text: string
+  translation: string
+  audio_url: string
+  speeds: CopySpeed[]
+  /** Words here the record says are not landing — why this phrase was picked. */
+  focus: string[]
+}
+
+export interface SpeakingSession {
+  phrases: SpeakingPhrase[]
+  record: WordRecord[]
+  attempts_for_pattern: number
+}
+
+export const fetchSpeakingPractice = (limit = 12) =>
+  request<SpeakingSession>(`/api/v1/speaking/practice?limit=${limit}`)
+
 export interface WordMark {
   word: string
   verdict: 'said' | 'slipped' | 'missed'
