@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchListening, postAttempt, type ListeningExercise } from './api'
 import { clean, fold, wordCredit } from './matching'
+import { wrongTone } from './playback'
+import { hasMistake, skeleton, type Slot } from './skeleton'
 import { speak, stopSpeech } from './speech'
 
 type WordMark = { word: string; state: 'ok' | 'near' | 'wrong' }
@@ -72,6 +74,66 @@ function CharLegend() {
           </p>
         </div>
       )}
+    </span>
+  )
+}
+
+// --- The sentence's shape -----------------------------------------------------
+
+/** Underscores for what is still to come, the real word once it is right.
+ *
+ *  Monospace, so a blank word's underscores line up with a filled word's
+ *  letters and the sentence does not shift about as it fills in. The word gap
+ *  is a real space rather than a margin, so the text reads correctly to a
+ *  screen reader instead of running together as one long run of underscores.
+ *
+ *  Wide tracking on the underscores only: it is what keeps them countable,
+ *  but applied to a filled word it spaces the letters out ("D e") and the
+ *  word stops looking like a word. */
+function Skeleton({ slots }: { slots: Slot[] }) {
+  return (
+    <p
+      aria-label="The sentence so far"
+      className="mb-3 text-center font-mono text-lg text-slate-500"
+    >
+      {slots.map((slot, i) => (
+        <span key={i}>
+          {i > 0 ? ' ' : ''}
+          <span
+            className={`inline-block whitespace-nowrap ${
+              slot.state === 'filled'
+                ? 'text-slate-100'
+                : slot.state === 'near'
+                  ? 'text-amber-300'
+                  : slot.state === 'wrong'
+                    ? 'tracking-widest text-red-400'
+                    : 'tracking-widest'
+            }`}
+          >
+            {slot.state === 'blank' || slot.state === 'wrong' ? slot.shape : slot.word}
+          </span>
+        </span>
+      ))}
+    </p>
+  )
+}
+
+/** The red light: on while a completed word is wrong, off the moment it is
+ *  fixed. Derived from the input rather than stored, so there is no stale
+ *  error to clear -- correcting the word is what clears it, and so does Hint,
+ *  which rewrites the answer to be right. */
+function MistakeLight({ on }: { on: boolean }) {
+  return (
+    <span role="status" aria-live="polite" className="flex items-center gap-1.5 text-xs">
+      <span
+        aria-hidden
+        className={`h-2.5 w-2.5 rounded-full transition ${
+          on ? 'bg-red-500 shadow-[0_0_6px_1px_rgba(239,68,68,0.7)]' : 'bg-white/15'
+        }`}
+      />
+      <span className={on ? 'text-red-400' : 'sr-only'}>
+        {on ? 'that word is not right' : 'no mistakes'}
+      </span>
     </span>
   )
 }
@@ -179,6 +241,22 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
   const fullyRevealed = hintWords >= targetWords.length && targetWords.length > 0
   const hintedWords = Math.min(hintWords, targetWords.length)
 
+  // The shape of the sentence, recomputed from the input every render. Nothing
+  // is stored, which is what makes the mistake light self-clearing.
+  const shape =
+    current && current.kind === 'dictation' && !result
+      ? skeleton(current.target, answer)
+      : null
+  const mistake = shape !== null && hasMistake(shape)
+
+  // Sound the cue on the edge only: as a word is completed wrongly, not once
+  // per keystroke for as long as the mistake stands.
+  const soundedRef = useRef(false)
+  useEffect(() => {
+    if (mistake && !soundedRef.current) wrongTone()
+    soundedRef.current = mistake
+  }, [mistake])
+
   // A hint coaches the current attempt: if what's typed is right so far, it
   // appends the next word; if not, it corrects the attempt (mistakes shown
   // struck-through in red with the fix beside them) so the next hint advances.
@@ -202,14 +280,16 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
     setHintPresses((p) => p + 1)
     if (wrong > 0) {
       const corrected = marks.flatMap((m) => (m.correct !== undefined ? [m.correct] : []))
-      setAnswer(corrected.join(' '))
+      // Trailing space: a hinted word is one the learner has moved past, so it
+      // has to count as complete and show up in the skeleton.
+      setAnswer(corrected.length ? corrected.join(' ') + ' ' : '')
       setHintFeedback({ kind: 'fix', marks })
       setHintWords((h) => h + wrong)
     } else if (typed.length >= targetWords.length) {
       setHintFeedback({ kind: 'complete' })
     } else {
       const added = targetWords[typed.length]
-      setAnswer([...typed, added].join(' '))
+      setAnswer([...typed, added].join(' ') + ' ')
       setHintFeedback({ kind: 'next', words: typed, added })
       setHintWords((h) => h + 1)
     }
@@ -402,6 +482,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
               </div>
             ) : (
               <>
+                {shape && <Skeleton slots={shape.slots} />}
                 {hintFeedback && (
                   <p className="mb-2 text-center text-lg tracking-wide">
                     {hintFeedback.kind === 'fix' ? (
@@ -444,18 +525,21 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                   spellCheck={false}
                 />
                 <div className="mt-2 flex items-center justify-between">
-                  <div className="flex gap-1.5">
-                    {SPECIAL_CHARS.map(({ char, shortcut }) => (
-                      <button
-                        key={char}
-                        type="button"
-                        onClick={() => insertChar(char)}
-                        className="rounded-lg border border-white/15 px-3 py-1 text-base font-medium text-slate-200 transition hover:border-sky-400/50 hover:bg-white/10"
-                      >
-                        {char}
-                        <span className="ml-1.5 text-[10px] text-slate-400">{shortcut}</span>
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1.5">
+                      {SPECIAL_CHARS.map(({ char, shortcut }) => (
+                        <button
+                          key={char}
+                          type="button"
+                          onClick={() => insertChar(char)}
+                          className="rounded-lg border border-white/15 px-3 py-1 text-base font-medium text-slate-200 transition hover:border-sky-400/50 hover:bg-white/10"
+                        >
+                          {char}
+                          <span className="ml-1.5 text-[10px] text-slate-400">{shortcut}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <MistakeLight on={mistake} />
                   </div>
                   <span className="flex gap-2">
                     <button

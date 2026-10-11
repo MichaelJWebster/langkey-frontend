@@ -248,3 +248,42 @@ export async function play(blob: Blob, key: string): Promise<void> {
   source = node
   node.start()
 }
+
+// --- cues ---------------------------------------------------------------------
+
+/**
+ * A short, low two-tone blip for a wrong answer.
+ *
+ * Through the same master gain as every clip, so the volume control governs it
+ * and it cannot become the one loud thing in the app. Deliberately quiet and
+ * low: it is a nudge while the learner is mid-sentence, not an alarm. Does
+ * nothing where Web Audio is unavailable — a missing cue is not worth an error.
+ */
+export function wrongTone(): void {
+  const context = audioContext()
+  if (!context || !master) return
+  try {
+    if (context.state === 'suspended') void context.resume()
+    const now = context.currentTime
+    const gain = context.createGain()
+    // Shaped rather than switched: a square-edged gate on a sine clicks.
+    gain.gain.setValueAtTime(0, now)
+    gain.gain.linearRampToValueAtTime(0.12, now + 0.01)
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18)
+    gain.connect(master)
+
+    const osc = context.createOscillator()
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(220, now)
+    osc.frequency.setValueAtTime(165, now + 0.09) // a step down reads as "no"
+    osc.connect(gain)
+    osc.start(now)
+    osc.stop(now + 0.2)
+    osc.onended = () => {
+      osc.disconnect()
+      gain.disconnect()
+    }
+  } catch {
+    /* no cue, no problem */
+  }
+}
