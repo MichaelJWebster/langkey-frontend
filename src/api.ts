@@ -392,3 +392,52 @@ export const saveReadingPosition = (slug: string, seq: number) =>
     method: 'PUT',
     body: JSON.stringify({ seq }),
   })
+
+// --- A1 translation passages -------------------------------------------------
+
+/** What the learner may say about their own translation. */
+export type PassageMark = 'missed' | 'partly' | 'got'
+
+export interface PassageGloss {
+  /** The word exactly as it appears in the Norwegian, not its dictionary form. */
+  form: string
+  lemma: string
+  en: string
+}
+
+export interface Passage {
+  slug: string
+  kind: 'sentence' | 'paragraph' | string
+  level: string
+  no: string
+  /** The reference translation, held back by the UI until the learner asks. */
+  en: string
+  word_count: number
+  topics: string[]
+  glossary: PassageGloss[]
+  last_mark: PassageMark | null
+  attempts: number
+}
+
+export interface PassageSession {
+  total: number
+  attempted: number
+  got: number
+  passages: Passage[]
+}
+
+export const fetchPassages = (topic?: string) =>
+  request<PassageSession>(
+    `/api/v1/passages${topic ? `?topic=${encodeURIComponent(topic)}` : ''}`,
+  )
+
+export const postPassageAttempt = (
+  slug: string,
+  mark: PassageMark,
+  answer: string,
+  revealed: boolean,
+) =>
+  request<{ slug: string; mark: PassageMark; score: number }>(
+    `/api/v1/passages/${slug}/attempt`,
+    { method: 'POST', body: JSON.stringify({ mark, answer, revealed }) },
+  )
