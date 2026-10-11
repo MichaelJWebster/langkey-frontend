@@ -156,8 +156,11 @@ function Exercise({
             aria-label="Words you may not know"
             className="mt-4 grid gap-x-6 gap-y-1 border-l-2 border-white/10 pl-4 text-sm sm:grid-cols-2"
           >
-            {passage.glossary.map((g) => (
-              <div key={g.form} className="flex gap-2">
+            {passage.glossary.map((g, i) => (
+              // Keyed by position: a surface form can legitimately repeat, and
+              // a1-145 glosses "fisker" as both the fisherman and the plural
+              // fish in one passage.
+              <div key={i} className="flex gap-2">
                 <dt
                   className={`font-medium ${
                     g.source === 'new' ? 'text-sky-300' : 'text-violet-300'
