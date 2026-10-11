@@ -9,7 +9,12 @@
 //
 // The glossary sits under the Norwegian from the start. Hiding it would turn a
 // reading exercise into a vocabulary quiz, and the words in it are by
-// definition ones the deck has not taught yet.
+// definition ones the learner has not been taught.
+//
+// "Unfamiliar" is per learner, not per passage. A word can be in the A1 deck
+// and still be no help while reading, because the deck has not got to it yet;
+// those are glossed alongside the ones outside the course and marked so the
+// difference is visible without being in the way.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
@@ -145,22 +150,36 @@ function Exercise({
       <p className="mt-3 text-xl leading-relaxed text-slate-100">{passage.no}</p>
 
       {passage.glossary.length > 0 && (
-        <dl
-          aria-label="New words"
-          className="mt-4 grid gap-x-6 gap-y-1 border-l-2 border-white/10 pl-4 text-sm sm:grid-cols-2"
-        >
-          {passage.glossary.map((g) => (
-            <div key={g.form} className="flex gap-2">
-              <dt className="font-medium text-sky-300">{g.form}</dt>
-              <dd className="text-slate-400">
-                {g.en}
-                {g.lemma !== g.form && (
-                  <span className="text-slate-500"> · {g.lemma}</span>
-                )}
-              </dd>
-            </div>
-          ))}
-        </dl>
+        <>
+          <dl
+            aria-label="Words you may not know"
+            className="mt-4 grid gap-x-6 gap-y-1 border-l-2 border-white/10 pl-4 text-sm sm:grid-cols-2"
+          >
+            {passage.glossary.map((g) => (
+              <div key={g.form} className="flex gap-2">
+                <dt
+                  className={`font-medium ${
+                    g.source === 'new' ? 'text-sky-300' : 'text-violet-300'
+                  }`}
+                  title={
+                    g.source === 'new'
+                      ? 'Not in the course — just for this passage'
+                      : 'In your A1 deck, but you have not met it yet'
+                  }
+                >
+                  {g.form}
+                </dt>
+                <dd className="text-slate-400">
+                  {g.en}
+                  {g.lemma !== g.form && (
+                    <span className="text-slate-500"> · {g.lemma}</span>
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <GlossaryKey glossary={passage.glossary} />
+        </>
       )}
 
       <label className="mt-6 block text-sm text-slate-400" htmlFor="translation">
@@ -214,6 +233,25 @@ function Exercise({
         </>
       )}
     </div>
+  )
+}
+
+/** Says what the two colours mean, and only mentions a kind that is present. */
+function GlossaryKey({ glossary }: { glossary: Passage['glossary'] }) {
+  const unseen = glossary.filter((g) => g.source === 'unseen').length
+  const fresh = glossary.length - unseen
+  if (!unseen) return null
+  return (
+    <p className="mt-2 pl-4 text-xs text-slate-500">
+      <span className="text-violet-300">{unseen}</span> from your deck you have not
+      met yet
+      {fresh > 0 && (
+        <>
+          {' · '}
+          <span className="text-sky-300">{fresh}</span> from outside the course
+        </>
+      )}
+    </p>
   )
 }
 

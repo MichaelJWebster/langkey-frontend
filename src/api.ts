@@ -403,6 +403,11 @@ export interface PassageGloss {
   form: string
   lemma: string
   en: string
+  /**
+   * `new` — not in the course at all.
+   * `unseen` — in the A1 deck, but this learner has not met it yet.
+   */
+  source: 'new' | 'unseen'
 }
 
 export interface Passage {

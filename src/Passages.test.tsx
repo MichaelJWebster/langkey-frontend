@@ -32,8 +32,10 @@ const HVERDAG: Passage = {
   word_count: 5,
   topics: ['home'],
   glossary: [
-    { form: 'Hverdagen', lemma: 'en hverdag', en: 'the everyday life' },
-    { form: 'min', lemma: 'min', en: 'my' },
+    { form: 'Hverdagen', lemma: 'en hverdag', en: 'the everyday life', source: 'new' },
+    { form: 'min', lemma: 'min', en: 'my', source: 'new' },
+    // In the A1 deck, but not met yet: a hint all the same.
+    { form: 'travel', lemma: 'travel', en: 'busy', source: 'unseen' },
   ],
   last_mark: 'missed',
   attempts: 2,
@@ -117,6 +119,30 @@ describe('the glossary', () => {
     expect(screen.getByText(/the everyday life/)).toBeTruthy()
     // The reference translation is still hidden on this new passage.
     expect(screen.queryByText('My everyday life is quite busy.')).toBeNull()
+  })
+
+  it('glosses deck words the learner has not met, beside the ones outside it', async () => {
+    await open()
+    screen.getByText('Check').click()
+    await waitFor(() => expect(screen.getByText('Got it')).toBeTruthy())
+    screen.getByText('Got it').click()
+
+    await waitFor(() => expect(screen.getByText('travel')).toBeTruthy())
+    expect(screen.getByText('busy')).toBeTruthy()
+    // And the key says which is which, without labelling every row.
+    expect(screen.getByText(/from your deck you have not met yet/)).toBeTruthy()
+    expect(screen.getByText(/from outside the course/)).toBeTruthy()
+  })
+
+  it('marks the two kinds differently', async () => {
+    await open()
+    screen.getByText('Check').click()
+    await waitFor(() => expect(screen.getByText('Got it')).toBeTruthy())
+    screen.getByText('Got it').click()
+
+    await waitFor(() => expect(screen.getByText('travel')).toBeTruthy())
+    expect(screen.getByText('travel').title).toMatch(/not met it yet/)
+    expect(screen.getByText('Hverdagen').title).toMatch(/Not in the course/)
   })
 
   it('shows how a passage went last time', async () => {
