@@ -8,9 +8,22 @@ export function clean(s: string): string {
     .trim()
 }
 
-/** Norwegian diacritics folded: writing "a" for "å" is nearly right, never wrong. */
+/**
+ * Norwegian diacritics flattened: å→a, ø→o, æ→ae.
+ *
+ * This no longer forgives anything. Writing "a" for "å" used to count as
+ * nearly right; it is a mistake now that æ ø å have prominent buttons on
+ * every screen that asks for Norwegian (ADR-040). Folding survives only to
+ * *recognise* that shape of mistake, so the feedback can name the character
+ * instead of marking the word wrong without saying why.
+ */
 export function fold(s: string): string {
   return s.replaceAll('å', 'a').replaceAll('ø', 'o').replaceAll('æ', 'ae')
+}
+
+/** True when the only thing wrong is a missing æ ø å. */
+export function isDiacriticSlip(got: string, target: string): boolean {
+  return got !== target && fold(got) === fold(target)
 }
 
 export function editDistance(a: string, b: string): number {
@@ -34,16 +47,17 @@ export function similarity(a: string, b: string): number {
 }
 
 /**
- * Credit for one word of a dictation: full marks when right (folded å/ø/æ
- * counts), otherwise spelling similarity, zeroed below half so an unrelated
- * word earns nothing.
+ * Credit for one word of a dictation: full marks only for the word as spelt,
+ * otherwise spelling similarity, zeroed below half so an unrelated word earns
+ * nothing.
+ *
+ * A missing å costs what any other wrong letter costs -- most of the word's
+ * credit survives, but it is no longer free (ADR-040).
  */
 export function wordCredit(got: string | undefined, target: string): number {
   if (!got) return 0
-  const a = fold(got)
-  const b = fold(target)
-  if (a === b) return 1
-  const sim = similarity(a, b)
+  if (got === target) return 1
+  const sim = similarity(got, target)
   return sim >= 0.5 ? sim : 0
 }
 
@@ -100,13 +114,14 @@ export interface AnswerMark {
 export function gradeAnswer(
   translation: string,
   guess: string,
-  norwegian = false,
   /** Answers the learner has vouched for on this card; treated as exact. */
   alternatives: string[] = [],
 ): AnswerMark {
   // Both sides lose their optional openers, so "sorry" answers "I'm sorry".
-  const normalise = (s: string) =>
-    (norwegian ? fold(clean(s)) : clean(s)).replace(LEADERS, '').replace(FILLERS, '')
+  // Norwegian answers are compared as spelt: æ ø å are part of the word, and
+  // the buttons under the box make them easy to type (ADR-040). A slip lands
+  // as a near miss on its spelling similarity rather than as a free pass.
+  const normalise = (s: string) => clean(s).replace(LEADERS, '').replace(FILLERS, '')
   const got = normalise(guess)
 
   for (const accepted of alternatives) {

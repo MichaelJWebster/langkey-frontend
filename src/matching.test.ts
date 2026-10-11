@@ -43,13 +43,25 @@ describe('gradeAnswer', () => {
     expect(gradeAnswer('a window', 'a bicycle').verdict).toBe('wrong')
   })
 
-  it('folds Norwegian diacritics when the answer is Norwegian', () => {
-    expect(gradeAnswer('å høre', 'a hore', true).verdict).toBe('exact')
-    expect(gradeAnswer('å høre', 'høre', true).verdict).toBe('exact')
+  it('counts a missing diacritic against the answer', () => {
+    // Was "exact" until ADR-040: æ ø å have buttons under the box now, so
+    // leaving them off costs what any other wrong letter costs.
+    expect(gradeAnswer('å forstå', 'a forsta').verdict).toBe('close')
+    expect(gradeAnswer('en jente', 'en jentæ').verdict).toBe('close')
+  })
+
+  it('marks a diacritic slip on a short word wrong, like any other', () => {
+    // The minimal-pair guard applies here too, and should: "far" and "får"
+    // are different words, not one word spelt carelessly.
+    expect(gradeAnswer('å høre', 'a hore').verdict).toBe('wrong')
+  })
+
+  it('still accepts the infinitive marker being left off', () => {
+    expect(gradeAnswer('å høre', 'høre').verdict).toBe('exact')
   })
 
   it('still marks a wrong Norwegian word wrong', () => {
-    expect(gradeAnswer('å høre', 'å snakke', true).verdict).toBe('wrong')
+    expect(gradeAnswer('å høre', 'å snakke').verdict).toBe('wrong')
   })
 })
 
@@ -92,9 +104,9 @@ describe('optional sentence openers', () => {
 
 describe('short answers are minimal pairs, not typos', () => {
   it('marks a one-letter miss on a short word wrong', () => {
-    expect(gradeAnswer('å bo', 'bok', true).verdict).toBe('wrong')
-    expect(gradeAnswer('hun', 'han', true).verdict).toBe('wrong')
-    expect(gradeAnswer('en mann', 'menn', true).verdict).toBe('wrong')
+    expect(gradeAnswer('å bo', 'bok').verdict).toBe('wrong')
+    expect(gradeAnswer('hun', 'han').verdict).toBe('wrong')
+    expect(gradeAnswer('en mann', 'menn').verdict).toBe('wrong')
   })
 
   it('still forgives a typo in a longer word', () => {
@@ -105,10 +117,10 @@ describe('short answers are minimal pairs, not typos', () => {
 describe('vouched-for alternatives', () => {
   it('accepts an answer the learner recorded', () => {
     expect(gradeAnswer('because', 'since').verdict).toBe('wrong')
-    expect(gradeAnswer('because', 'since', false, ['since']).verdict).toBe('exact')
+    expect(gradeAnswer('because', 'since', ['since']).verdict).toBe('exact')
   })
 
   it('normalises the recorded answer too', () => {
-    expect(gradeAnswer('a road', 'Street!', false, ['a street']).verdict).toBe('exact')
+    expect(gradeAnswer('a road', 'Street!', ['a street']).verdict).toBe('exact')
   })
 })

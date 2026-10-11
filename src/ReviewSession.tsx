@@ -198,7 +198,7 @@ export default function ReviewSession({
 
   const check = useCallback(() => {
     if (!current || outcome || !answer.trim()) return
-    const mark = gradeAnswer(expected, answer, !isRecognition, current.alternatives)
+    const mark = gradeAnswer(expected, answer, current.alternatives)
     grade(ratingFor(mark, Date.now() - askedAt.current), mark)
   }, [current, outcome, answer, expected, isRecognition, grade])
 
@@ -394,21 +394,27 @@ export default function ReviewSession({
               autoCorrect="off"
               spellCheck={false}
             />
-            <div className="mt-3 flex items-center justify-between gap-2">
-              <div className="flex gap-1.5">
-                {!isRecognition &&
-                  SPECIAL_CHARS.map(({ char, shortcut }) => (
-                    <button
-                      key={char}
-                      type="button"
-                      onClick={() => insertChar(char)}
-                      className="rounded-lg border border-white/15 px-3 py-1 text-base font-medium text-slate-200 transition hover:border-teal-300/50 hover:bg-white/10"
-                    >
-                      {char}
-                      <span className="ml-1.5 text-[10px] text-slate-500">{shortcut}</span>
-                    </button>
-                  ))}
+            {/* Typing æ ø å has to be easy, because a plain a for å is now a
+                mistake rather than a near miss (ADR-040). Own row and thumb-
+                sized on a phone, where they are the only practical way in and
+                the ⌥ shortcut means nothing. */}
+            {!isRecognition && (
+              <div className="mt-3 flex gap-2">
+                {SPECIAL_CHARS.map(({ char, shortcut }) => (
+                  <button
+                    key={char}
+                    type="button"
+                    onClick={() => insertChar(char)}
+                    aria-label={`Insert ${char}`}
+                    className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-4 text-xl font-medium text-slate-100 transition hover:border-teal-300/50 hover:bg-white/10 sm:flex-none"
+                  >
+                    {char}
+                    <span className="hidden text-[10px] text-slate-400 sm:inline">{shortcut}</span>
+                  </button>
+                ))}
               </div>
+            )}
+            <div className="mt-3 flex items-center justify-end gap-2">
               <div className="flex gap-2">
                 <button
                   onClick={reveal}

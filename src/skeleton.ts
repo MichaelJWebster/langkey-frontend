@@ -14,12 +14,12 @@
 // not finished the word yet. Only a word the learner has moved past, or
 // closed with a space, is complete and gets an answer.
 
-import { clean, fold } from './matching'
+import { clean, isDiacriticSlip } from './matching'
 
 export type SlotState =
   | 'blank' // not yet earned: shown as underscores
   | 'filled' // typed correctly
-  | 'near' // right but for å/ø/æ written plain, which is never counted wrong
+  | 'slip' // wrong only in its æ ø å -- a mistake, but a nameable one
   | 'wrong' // a completed word that does not match
 
 export type Slot = {
@@ -30,7 +30,8 @@ export type Slot = {
 
 export type Skeleton = {
   slots: Slot[]
-  wrong: number // completed words that do not match their slot
+  wrong: number // completed words that do not match their slot, slips included
+  slips: number // of those, the ones that are only a missing æ ø å
   extra: number // completed words past the end of the sentence
 }
 
@@ -53,13 +54,15 @@ export function typedWords(typed: string): { words: string[]; complete: number }
   return { words, complete: closed ? words.length : Math.max(0, words.length - 1) }
 }
 
-/** Compare one typed word with its slot, using the same tolerance as checking. */
+/** Compare one typed word with its slot, by the same rule as checking. */
 function verdict(got: string, want: string): SlotState {
   const a = clean(got)
   const b = clean(want)
   if (!a) return 'blank'
   if (a === b) return 'filled'
-  if (fold(a) === fold(b)) return 'near'
+  // A missing å is a mistake like any other (ADR-040), but it is worth
+  // telling apart so the feedback can point at the character.
+  if (isDiacriticSlip(a, b)) return 'slip'
   return 'wrong'
 }
 
@@ -77,15 +80,17 @@ export function skeleton(target: string, typed: string): Skeleton {
   const { words, complete } = typedWords(typed)
 
   let wrong = 0
+  let slips = 0
   const slots = targetWords.map((word, i) => {
     const shape = shapeOf(word)
     if (i >= complete) return { word, shape, state: 'blank' as SlotState }
     const state = verdict(words[i], word)
-    if (state === 'wrong') wrong += 1
+    if (state === 'wrong' || state === 'slip') wrong += 1
+    if (state === 'slip') slips += 1
     return { word, shape, state }
   })
 
-  return { slots, wrong, extra: Math.max(0, complete - targetWords.length) }
+  return { slots, wrong, slips, extra: Math.max(0, complete - targetWords.length) }
 }
 
 /** Whether the learner has a mistake standing right now. */

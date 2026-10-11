@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchListening, postAttempt, type ListeningExercise } from './api'
-import { clean, fold, wordCredit } from './matching'
+import { clean, isDiacriticSlip, wordCredit } from './matching'
 import { wrongTone } from './playback'
 import { hasMistake, skeleton, type Slot } from './skeleton'
 import { speak, stopSpeech } from './speech'
 
-type WordMark = { word: string; state: 'ok' | 'near' | 'wrong' }
+type WordMark = { word: string; state: 'ok' | 'slip' | 'wrong' }
 
 function checkDictation(target: string, answer: string): {
   correct: boolean
@@ -19,11 +19,17 @@ function checkDictation(target: string, answer: string): {
   const marks: WordMark[] = targetWords.map((word, i) => {
     const got = answerWords[i]
     if (got === word) return { word, state: 'ok' }
-    if (got !== undefined && fold(got) === fold(word)) return { word, state: 'near' }
+    if (got !== undefined && isDiacriticSlip(got, word)) return { word, state: 'slip' }
     return { word, state: 'wrong' }
   })
-  const correct = marks.every((m) => m.state !== 'wrong') && answerWords.length === targetWords.length
-  const nearMiss = correct && marks.some((m) => m.state === 'near')
+  // A missing æ ø å is a mistake now, not a pass (ADR-040): the buttons under
+  // the box make the characters easy to reach, so leaving them off is a
+  // spelling error like any other.
+  const correct =
+    marks.every((m) => m.state === 'ok') && answerWords.length === targetWords.length
+  // Still worth flagging separately -- "it was only the diacritics" is useful
+  // to be told, and the backend has logged it since M2.
+  const nearMiss = marks.some((m) => m.state === 'slip')
   return { correct, nearMiss, marks }
 }
 
@@ -61,8 +67,9 @@ function CharLegend() {
             <li>æ = ⌥'&ensp;·&ensp;Æ = ⌥⇧'</li>
           </ul>
           <p className="mt-2 text-xs text-slate-400">
-            Or hold a / o down for the accent picker, or click the buttons here. Writing a for å
-            counts as <i>nearly right</i> — never wrong.
+            Or hold a / o down for the accent picker, or tap the big buttons under the box.
+            Writing <i>a</i> for <i>å</i> counts against you — they are different letters, and
+            sometimes different words (<i>far</i> is a father, <i>får</i> is gets).
           </p>
           <p className="mt-2 rounded-md bg-amber-400/10 px-2 py-1 text-xs text-amber-300">
             ⚠️ Not ⌘ Command — ⌘O opens the browser's file dialog!
@@ -89,7 +96,11 @@ function CharLegend() {
  *
  *  Wide tracking on the underscores only: it is what keeps them countable,
  *  but applied to a filled word it spaces the letters out ("D e") and the
- *  word stops looking like a word. */
+ *  word stops looking like a word.
+ *
+ *  A wrong word stays underscores -- amber for a missing æ ø å, red for
+ *  anything else. Showing the right spelling of a slip would hand over the
+ *  fix, and the mistake would cost nothing after all (ADR-040). */
 function Skeleton({ slots }: { slots: Slot[] }) {
   return (
     <p
@@ -103,14 +114,14 @@ function Skeleton({ slots }: { slots: Slot[] }) {
             className={`inline-block whitespace-nowrap ${
               slot.state === 'filled'
                 ? 'text-slate-100'
-                : slot.state === 'near'
-                  ? 'text-amber-300'
+                : slot.state === 'slip'
+                  ? 'tracking-widest text-amber-300'
                   : slot.state === 'wrong'
                     ? 'tracking-widest text-red-400'
                     : 'tracking-widest'
             }`}
           >
-            {slot.state === 'blank' || slot.state === 'wrong' ? slot.shape : slot.word}
+            {slot.state === 'filled' ? slot.word : slot.shape}
           </span>
         </span>
       ))}
@@ -122,20 +133,69 @@ function Skeleton({ slots }: { slots: Slot[] }) {
  *  fixed. Derived from the input rather than stored, so there is no stale
  *  error to clear -- correcting the word is what clears it, and so does Hint,
  *  which rewrites the answer to be right. */
-function MistakeLight({ on }: { on: boolean }) {
+function MistakeLight({ on, slipsOnly }: { on: boolean; slipsOnly: boolean }) {
+  // Naming the *kind* of mistake, never the word. "check æ ø å" narrows it to
+  // one character without spelling the answer out.
+  const amber = on && slipsOnly
   return (
     <span role="status" aria-live="polite" className="flex items-center gap-1.5 text-xs">
       <span
         aria-hidden
         className={`h-2.5 w-2.5 rounded-full transition ${
-          on ? 'bg-red-500 shadow-[0_0_6px_1px_rgba(239,68,68,0.7)]' : 'bg-white/15'
+          !on
+            ? 'bg-white/15'
+            : amber
+              ? 'bg-amber-400 shadow-[0_0_6px_1px_rgba(251,191,36,0.7)]'
+              : 'bg-red-500 shadow-[0_0_6px_1px_rgba(239,68,68,0.7)]'
         }`}
       />
-      <span className={on ? 'text-red-400' : 'sr-only'}>
-        {on ? 'that word is not right' : 'no mistakes'}
+      <span className={!on ? 'sr-only' : amber ? 'text-amber-300' : 'text-red-400'}>
+        {!on ? 'no mistakes' : amber ? 'check æ ø å' : 'that word is not right'}
       </span>
     </span>
   )
+}
+
+/** The mark for one exercise, always shown — the number is the point, so it
+ *  does not hide behind "Correct!" on the ones that went well. */
+function ScoreBadge({ mark }: { mark: number }) {
+  const pct = Math.round(mark * 100)
+  const tone =
+    pct >= 100
+      ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300'
+      : pct >= 60
+        ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
+        : 'border-red-400/40 bg-red-400/10 text-red-300'
+  return (
+    <p className="mt-3">
+      <span
+        className={`inline-block rounded-full border px-3 py-1 text-lg font-semibold tabular-nums ${tone}`}
+      >
+        {pct}%
+      </span>
+    </p>
+  )
+}
+
+/** What went wrong, in one line. The percentage is on the badge above, so
+ *  this says the *reason* rather than repeating the number. */
+function verdictLine(
+  result: Result,
+  answer: string,
+  hintedWords: number,
+  fullyRevealed: boolean,
+): string {
+  if (fullyRevealed) return '💡 Revealed — it will come around again'
+  if (result.correct) {
+    if (hintedWords > 0) {
+      return `🟡 Right, with ${hintedWords} hinted ${hintedWords === 1 ? 'word' : 'words'}`
+    }
+    return '✅ Correct!'
+  }
+  if (result.nearMiss) {
+    return '🟠 Only the special characters — æ ø å count, and the buttons are there for them'
+  }
+  return `❌ Not quite — your answer: ${answer || '(empty)'}`
 }
 
 // --- Session -----------------------------------------------------------------
@@ -248,6 +308,9 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
       ? skeleton(current.target, answer)
       : null
   const mistake = shape !== null && hasMistake(shape)
+  // Every standing mistake is a diacritic: worth saying, since it points at
+  // one character rather than the whole word.
+  const slipsOnly = shape !== null && shape.extra === 0 && shape.slips === shape.wrong
 
   // Sound the cue on the edge only: as a word is completed wrongly, not once
   // per keystroke for as long as the mistake stands.
@@ -270,8 +333,8 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
       if (t === undefined) {
         marks.push({ typed: w }) // extra word beyond the sentence
         wrong += 1
-      } else if (w === t || fold(w) === fold(t)) {
-        marks.push({ correct: w }) // folded å/ø/æ counts as right, as in checking
+      } else if (w === t) {
+        marks.push({ correct: w })
       } else {
         marks.push({ typed: w, correct: t })
         wrong += 1
@@ -373,14 +436,24 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
     return (
       <Card>
         <div className="text-4xl">🎧</div>
-        <p className="mt-3 text-xl font-medium">
-          {score.right} / {score.total} correct
-          {score.helped > 0 && <span className="text-sm text-slate-400"> (+{score.helped} with hints)</span>}
-          {score.near > 0 && <span className="text-sm text-amber-300"> ({score.near} nearly — watch æ ø å)</span>}
-        </p>
+        {/* The session percentage leads, because it is the thing being asked
+            for: one number covering the whole run, averaged over the
+            per-exercise marks rather than counting answers right or wrong. */}
         {score.total > 0 && (
-          <p className="mt-1 text-sm text-slate-400">
-            Session mark: {Math.round((score.points / score.total) * 100)}%
+          <p className="mt-3 text-5xl font-semibold tabular-nums">
+            {Math.round((score.points / score.total) * 100)}%
+          </p>
+        )}
+        <p className="mt-2 text-lg font-medium">
+          {score.right} / {score.total} correct
+          {score.helped > 0 && (
+            <span className="text-sm text-slate-400"> (+{score.helped} with hints)</span>
+          )}
+        </p>
+        {score.near > 0 && (
+          <p className="mt-1 text-sm text-amber-300">
+            {score.near} lost {score.near === 1 ? 'a mark' : 'marks'} to æ ø å — the buttons
+            under the box type them
           </p>
         )}
         <button
@@ -457,7 +530,11 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                     <span
                       key={i}
                       className={
-                        m.state === 'ok' ? 'text-emerald-400' : m.state === 'near' ? 'text-amber-300 underline decoration-dotted' : 'text-red-400 underline'
+                        m.state === 'ok'
+                          ? 'text-emerald-400'
+                          : m.state === 'slip'
+                            ? 'text-amber-300 underline decoration-dotted'
+                            : 'text-red-400 underline'
                       }
                     >
                       {m.word}{' '}
@@ -465,19 +542,8 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                   ))}
                 </p>
                 <p className="mt-1 text-sm text-slate-400">{current.translation}</p>
-                <p className="mt-3 text-sm font-medium">
-                  {result.correct
-                    ? hintedWords > 0
-                      ? `🟡 ${Math.round((result.mark ?? 0) * 100)}% — right with ${hintedWords} hinted ` +
-                        (hintedWords === 1 ? 'word' : 'words')
-                      : result.nearMiss ? '👍 Nearly right — mind the special characters' : '✅ Correct!'
-                    : fullyRevealed
-                      ? '💡 Revealed — it will come around again'
-                      : (result.mark ?? 0) > 0
-                        ? `❌ Not quite (${Math.round(result.mark! * 100)}% credit) — your answer: ` +
-                          (answer || '(empty)')
-                        : '❌ Not quite — your answer: ' + (answer || '(empty)')}
-                </p>
+                <ScoreBadge mark={result.mark ?? 0} />
+                <p className="mt-2 text-sm font-medium">{verdictLine(result, answer, hintedWords, fullyRevealed)}</p>
                 <NextButton onClick={next} />
               </div>
             ) : (
@@ -524,39 +590,40 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
                   autoCorrect="off"
                   spellCheck={false}
                 />
-                <div className="mt-2 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex gap-1.5">
-                      {SPECIAL_CHARS.map(({ char, shortcut }) => (
-                        <button
-                          key={char}
-                          type="button"
-                          onClick={() => insertChar(char)}
-                          className="rounded-lg border border-white/15 px-3 py-1 text-base font-medium text-slate-200 transition hover:border-sky-400/50 hover:bg-white/10"
-                        >
-                          {char}
-                          <span className="ml-1.5 text-[10px] text-slate-400">{shortcut}</span>
-                        </button>
-                      ))}
-                    </div>
-                    <MistakeLight on={mistake} />
+                <div className="mt-3 space-y-2">
+                  <div className="flex gap-2">
+                    {SPECIAL_CHARS.map(({ char, shortcut }) => (
+                      <button
+                        key={char}
+                        type="button"
+                        onClick={() => insertChar(char)}
+                        aria-label={`Insert ${char}`}
+                        className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-4 text-xl font-medium text-slate-100 transition hover:border-sky-400/50 hover:bg-white/10 sm:flex-none"
+                      >
+                        {char}
+                        <span className="hidden text-[10px] text-slate-400 sm:inline">{shortcut}</span>
+                      </button>
+                    ))}
                   </div>
-                  <span className="flex gap-2">
-                    <button
-                      onClick={giveHint}
-                      className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 font-medium text-amber-300 transition hover:bg-amber-400/20"
-                    >
-                      {hintPresses > 0 ? 'More' : 'Hint'}
-                      <span className="ml-1 text-xs opacity-60">H</span>
-                    </button>
-                    <button
-                      onClick={checkDictationAnswer}
-                      disabled={!answer.trim() && !fullyRevealed}
-                      className="rounded-lg bg-gradient-to-r from-teal-300 to-indigo-400 px-5 py-1.5 font-semibold text-slate-900 transition hover:opacity-90 disabled:opacity-40"
-                    >
-                      Check <span className="ml-1 text-xs text-slate-700/70">↵</span>
-                    </button>
-                  </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <MistakeLight on={mistake} slipsOnly={slipsOnly} />
+                    <span className="flex gap-2">
+                      <button
+                        onClick={giveHint}
+                        className="min-h-11 rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 font-medium text-amber-300 transition hover:bg-amber-400/20"
+                      >
+                        {hintPresses > 0 ? 'More' : 'Hint'}
+                        <span className="ml-1 hidden text-xs opacity-60 sm:inline">H</span>
+                      </button>
+                      <button
+                        onClick={checkDictationAnswer}
+                        disabled={!answer.trim() && !fullyRevealed}
+                        className="min-h-11 rounded-lg bg-gradient-to-r from-teal-300 to-indigo-400 px-5 font-semibold text-slate-900 transition hover:opacity-90 disabled:opacity-40"
+                      >
+                        Check <span className="ml-1 hidden text-xs text-slate-700/70 sm:inline">↵</span>
+                      </button>
+                    </span>
+                  </div>
                 </div>
               </>
             )}

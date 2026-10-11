@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { hasMistake, shapeOf, skeleton, typedWords } from './skeleton'
 
+// Mirrors the component: only a word typed correctly is shown as a word.
 const shapes = (target: string, typed: string) =>
   skeleton(target, typed)
-    .slots.map((s) => (s.state === 'blank' || s.state === 'wrong' ? s.shape : s.word))
+    .slots.map((s) => (s.state === 'filled' ? s.word : s.shape))
     .join(' ')
 
 describe('shapeOf', () => {
@@ -80,12 +81,27 @@ describe('skeleton', () => {
     expect(hasMistake(skeleton('Hva heter du?', 'Hva heter '))).toBe(false)
   })
 
-  it('counts a plain a for å as near, never as a mistake', () => {
+  it('counts a plain a for å as a mistake, but a nameable one', () => {
+    // Reversed by ADR-040: this used to be "nearly right, never wrong".
     const s = skeleton('Forstår du?', 'Forstar ')
-    expect(s.slots[0].state).toBe('near')
-    expect(hasMistake(s)).toBe(false)
-    // Near shows the real spelling, which is the thing worth seeing.
-    expect(shapes('Forstår du?', 'Forstar ')).toBe('Forstår __?')
+    expect(s.slots[0].state).toBe('slip')
+    expect(hasMistake(s)).toBe(true)
+    expect(s.slips).toBe(1)
+    expect(s.wrong).toBe(1) // slips are counted among the mistakes
+  })
+
+  it('does not reveal the spelling of a word slipped on', () => {
+    // Showing "Forstår" would hand over the fix, and the mistake would end up
+    // costing nothing.
+    expect(shapes('Forstår du?', 'Forstar ')).toBe('_______ __?')
+  })
+
+  it('separates a slip from an ordinary wrong word', () => {
+    const slip = skeleton('Forstår du?', 'Forstar ')
+    const wrong = skeleton('Forstår du?', 'Snakker ')
+    expect(slip.slips).toBe(1)
+    expect(wrong.slips).toBe(0)
+    expect(wrong.wrong).toBe(1)
   })
 
   it('judges each position independently, so a later word still fills', () => {
