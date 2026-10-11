@@ -21,6 +21,7 @@ import {
   fetchPassages,
   postPassageAttempt,
   type Passage,
+  type PassageLine,
   type PassageMark,
   type PassageSession,
 } from './api'
@@ -147,7 +148,7 @@ function Exercise({
         {passage.last_mark && ` · last time: ${passage.last_mark}`}
       </p>
 
-      <p className="mt-3 text-xl leading-relaxed text-slate-100">{passage.no}</p>
+      <Norwegian passage={passage} />
 
       {passage.glossary.length > 0 && (
         <>
@@ -213,7 +214,20 @@ function Exercise({
             <p className="text-xs uppercase tracking-wide text-slate-500">
               Reference translation
             </p>
-            <p className="mt-1 text-slate-200">{passage.en}</p>
+            {passage.lines ? (
+              <div className="mt-1 space-y-1">
+                {passage.lines.map((ln, i) => (
+                  <Line
+                    key={i}
+                    role={ln.role}
+                    text={ln.en}
+                    className="text-slate-200"
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-slate-200">{passage.en}</p>
+            )}
           </div>
           <p className="mt-5 text-sm text-slate-400">
             How did you do? Meaning counts, not wording.
@@ -233,6 +247,64 @@ function Exercise({
         </>
       )}
     </div>
+  )
+}
+
+// The passage itself. An exchange is split and labelled --
+//
+//     Question: Unnskyld, hvor er nærmeste bank?
+//     Answer:   Den ligger rett over gata, ved siden av apoteket.
+//
+// -- because run together it reads as one person talking to themselves, and
+// the shape of a question and its answer is half of what makes the second half
+// guessable. Which utterance is a question comes from the content, not from a
+// question mark: a1-023 is two question marks from a single speaker.
+//
+// The labels are scaffolding for an English speaker, so they stay in English.
+function Norwegian({ passage }: { passage: Passage }) {
+  if (!passage.lines) {
+    return <p className="mt-3 text-xl leading-relaxed text-slate-100">{passage.no}</p>
+  }
+  return (
+    <div className="mt-3 space-y-1.5">
+      {passage.lines.map((ln, i) => (
+        <Line
+          key={i}
+          role={ln.role}
+          text={ln.no}
+          className="text-xl leading-relaxed text-slate-100"
+        />
+      ))}
+    </div>
+  )
+}
+
+const LABELS: Record<PassageLine['role'], string | null> = {
+  question: 'Question',
+  answer: 'Answer',
+  line: null,
+}
+
+/** One line, its label in a fixed column so the Norwegian stays aligned. */
+function Line({
+  role,
+  text,
+  className,
+}: {
+  role: PassageLine['role']
+  text: string
+  className: string
+}) {
+  const label = LABELS[role]
+  return (
+    <p className={`flex flex-wrap gap-x-2 sm:flex-nowrap ${className}`}>
+      {label && (
+        <span className="shrink-0 text-sm uppercase tracking-wide text-slate-500 sm:w-20 sm:pt-1">
+          {label}
+        </span>
+      )}
+      <span className={label ? '' : 'sm:ml-[5.5rem]'}>{text}</span>
+    </p>
   )
 }
 

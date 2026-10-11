@@ -410,6 +410,13 @@ export interface PassageGloss {
   source: 'new' | 'unseen'
 }
 
+export interface PassageLine {
+  /** `question` and `answer` are labelled; `line` is an unlabelled break. */
+  role: 'question' | 'answer' | 'line'
+  no: string
+  en: string
+}
+
 export interface Passage {
   slug: string
   kind: 'sentence' | 'paragraph' | string
@@ -417,6 +424,8 @@ export interface Passage {
   no: string
   /** The reference translation, held back by the UI until the learner asks. */
   en: string
+  /** Set when the passage is an exchange; null for a plain paragraph. */
+  lines: PassageLine[] | null
   word_count: number
   topics: string[]
   glossary: PassageGloss[]
