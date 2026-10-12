@@ -127,7 +127,12 @@ export interface SkillsBreakdown {
   vocabulary: CardBreakdown
   writing: CardBreakdown
   listening: { clean: number; helped: number; missed: number; total: number }
-  reading: { sentences_read: number; sentences_total: number }
+  reading: {
+    sentences_read: number
+    sentences_total: number
+    /** The A1 passages — the only part of Reading that is marked. */
+    passages: PassageTally
+  }
 }
 
 export interface CefrSkill {
@@ -433,10 +438,28 @@ export interface Passage {
   attempts: number
 }
 
+/**
+ * How the learner stands on the marked part of Reading.
+ *
+ * `score` is quality over what was attempted; `attempted`/`total` is distance
+ * through the material. Kept apart on purpose — a score averaged over all 200
+ * passages would read as 9% to someone translating well but only just started.
+ * Null score means nothing is marked yet, so show "not started", not 0%.
+ */
+export interface PassageTally {
+  total: number
+  attempted: number
+  got: number
+  partly: number
+  missed: number
+  score: number | null
+}
+
 export interface PassageSession {
   total: number
   attempted: number
   got: number
+  tally: PassageTally
   passages: Passage[]
 }
 

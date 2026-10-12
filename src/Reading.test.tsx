@@ -55,7 +55,13 @@ vi.mock('./api', async (orig) => ({
     sentences: [{ seq: 1, paragraph: 1, no: 'Det var i den Tid', en: 'It was at the time' }],
   }),
   saveReadingPosition: async () => ({ seq: 1 }),
-  fetchPassages: async () => ({ total: 0, attempted: 0, got: 0, passages: [] }),
+  fetchPassages: async () => ({
+    total: 0,
+    attempted: 0,
+    got: 0,
+    tally: { total: 0, attempted: 0, got: 0, partly: 0, missed: 0, score: null },
+    passages: [],
+  }),
 }))
 
 import Reading from './Reading'
@@ -87,6 +93,61 @@ describe('the two reading sections', () => {
 
     // Neither section's contents show until one is chosen.
     expect(screen.queryByText('Folktales')).toBeNull()
+  })
+
+  // Michael: "I'm not seeing a percentage or score appear on the main page of
+  // the application, or in the reading exercises section."
+  it('shows the A1 score on its section card', async () => {
+    render(
+      <Reading
+        onBack={() => {}}
+        passages={{
+          total: 200,
+          attempted: 21,
+          got: 18,
+          partly: 2,
+          missed: 1,
+          score: 90.5,
+        }}
+      />,
+    )
+    await waitFor(() =>
+      expect(screen.getByText('A1 Reading and translation')).toBeTruthy(),
+    )
+    expect(screen.getByText('91%')).toBeTruthy()
+    expect(screen.getByText(/21 of 200 done/)).toBeTruthy()
+    expect(screen.getByText(/18 got it/)).toBeTruthy()
+    expect(screen.getByText(/2 partly/)).toBeTruthy()
+    expect(screen.getByText(/1 missed/)).toBeTruthy()
+  })
+
+  it('says "not started" rather than 0% before any passage is marked', async () => {
+    render(
+      <Reading
+        onBack={() => {}}
+        passages={{ total: 200, attempted: 0, got: 0, partly: 0, missed: 0, score: null }}
+      />,
+    )
+    await waitFor(() =>
+      expect(screen.getByText(/200 passages · not started/)).toBeTruthy(),
+    )
+    expect(screen.queryByText('0%')).toBeNull()
+  })
+
+  it('does not score the library half — it is read, not marked', async () => {
+    render(
+      <Reading
+        onBack={() => {}}
+        passages={{ total: 200, attempted: 21, got: 18, partly: 2, missed: 1, score: 90.5 }}
+      />,
+    )
+    await waitFor(() =>
+      expect(screen.getByText('Reading for interest (not A1 based)')).toBeTruthy(),
+    )
+    const library = screen
+      .getByText('Reading for interest (not A1 based)')
+      .closest('button')
+    expect(library?.textContent).not.toMatch(/%/)
   })
 
   it('summarises the library on its card', async () => {

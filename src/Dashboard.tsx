@@ -489,14 +489,20 @@ function SkillScreen({
   }
   if (skill === 'reading') {
     const r = breakdown.reading
+    // Two halves, two different measures. Only the A1 passages are marked, so
+    // only they get a percentage; the library is read, not scored.
+    const marked =
+      r.passages.score !== null
+        ? `A1 translation ${Math.round(r.passages.score)}% over ${r.passages.attempted} of ${r.passages.total}`
+        : `${r.passages.total} A1 passages to translate`
     return (
       <SkillShell
         skill="reading"
         title="Reading"
-        subtitle={`${r.sentences_read} of ${r.sentences_total} sentences in the library read`}
+        subtitle={`${marked} · ${r.sentences_read} of ${r.sentences_total} library sentences read`}
         onBack={onBack}
       >
-        <Reading onBack={onBack} />
+        <Reading onBack={onBack} passages={r.passages} />
       </SkillShell>
     )
   }

@@ -8,14 +8,23 @@ import {
   type TextSummary,
 } from './api'
 import { categorise, type Category } from './categories'
-import Passages from './Passages'
+import Passages, { ScorePill } from './Passages'
+import type { PassageTally } from './api'
 
 // --- Shell -------------------------------------------------------------------
 
 /** Which half of Reading the learner is in. Null is the top-level choice. */
 type Section = 'a1' | 'interest'
 
-export default function Reading({ onBack }: { onBack: () => void }) {
+export default function Reading({
+  onBack,
+  passages,
+}: {
+  onBack: () => void
+  /** The A1 standing, handed down so the section card can show it without a
+   *  second fetch. Optional: the library half of Reading does not need it. */
+  passages?: PassageTally
+}) {
   const [section, setSection] = useState<Section | null>(null)
   const [texts, setTexts] = useState<TextSummary[] | null>(null)
   const [kind, setKind] = useState<string | null>(null)
@@ -93,6 +102,7 @@ export default function Reading({ onBack }: { onBack: () => void }) {
           <SectionIndex
             textCount={texts?.length ?? 0}
             sentenceCount={(texts ?? []).reduce((n, t) => n + t.sentence_count, 0)}
+            passages={passages}
             onPick={setSection}
           />
         )}
@@ -123,10 +133,12 @@ export default function Reading({ onBack }: { onBack: () => void }) {
 function SectionIndex({
   textCount,
   sentenceCount,
+  passages,
   onPick,
 }: {
   textCount: number
   sentenceCount: number
+  passages?: PassageTally
   onPick: (s: Section) => void
 }) {
   return (
@@ -135,11 +147,37 @@ function SectionIndex({
         onClick={() => onPick('a1')}
         className="rounded-xl border border-white/15 p-4 text-left transition hover:border-sky-400/50 hover:bg-white/10"
       >
-        <span className="font-medium text-slate-100">A1 Reading and translation</span>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="font-medium text-slate-100">A1 Reading and translation</span>
+          {passages && passages.score !== null && <ScorePill score={passages.score} />}
+        </div>
         <p className="mt-0.5 text-sm text-slate-400">
           Short passages built from the words you are learning. Translate them into
           English and mark your own answer.
         </p>
+        {passages &&
+          (passages.attempted > 0 ? (
+            <p className="mt-2 text-xs text-slate-500">
+              {passages.attempted} of {passages.total} done ·{' '}
+              <span className="text-emerald-300">{passages.got} got it</span>
+              {passages.partly > 0 && (
+                <>
+                  {' · '}
+                  <span className="text-amber-300">{passages.partly} partly</span>
+                </>
+              )}
+              {passages.missed > 0 && (
+                <>
+                  {' · '}
+                  <span className="text-rose-300">{passages.missed} missed</span>
+                </>
+              )}
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-slate-500">
+              {passages.total} passages · not started
+            </p>
+          ))}
       </button>
       <button
         onClick={() => onPick('interest')}

@@ -74,6 +74,7 @@ const SESSION: PassageSession = {
   total: 25,
   attempted: 1,
   got: 0,
+  tally: { total: 25, attempted: 4, got: 2, partly: 1, missed: 1, score: 62.5 },
   passages: [ANNA, HVERDAG],
 }
 
@@ -135,7 +136,25 @@ describe('the translation exercise', () => {
   it('counts the session', async () => {
     await open()
     expect(screen.getByText('1 of 2')).toBeTruthy()
-    expect(screen.getByText('0 of 25 done')).toBeTruthy()
+  })
+
+  // Michael: "I'm not seeing a percentage or score appear ... in the reading
+  // exercises section." It used to exist only in the end-of-session summary.
+  it('keeps the running score in the header, not just at the end', async () => {
+    await open()
+    expect(screen.getByText('63%')).toBeTruthy()
+    expect(screen.getByText('4 of 25 done')).toBeTruthy()
+  })
+
+  it('shows no percentage before anything is marked', async () => {
+    next = {
+      ...SESSION,
+      tally: { total: 25, attempted: 0, got: 0, partly: 0, missed: 0, score: null },
+    }
+    render(<Passages onBack={() => {}} />)
+    await waitFor(() => expect(screen.getByText('0 of 25 done')).toBeTruthy())
+    // A 0% here would read as "you scored nothing", not "not started".
+    expect(screen.queryByText('0%')).toBeNull()
   })
 })
 

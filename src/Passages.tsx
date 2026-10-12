@@ -24,6 +24,7 @@ import {
   type PassageLine,
   type PassageMark,
   type PassageSession,
+  type PassageTally,
 } from './api'
 
 const MARKS: { mark: PassageMark; label: string; hint: string; tone: string }[] = [
@@ -99,11 +100,7 @@ export default function Passages({ onBack }: { onBack: () => void }) {
             {at + 1} of {session.passages.length}
           </span>
         )}
-        {session && (
-          <span>
-            {session.got} of {session.total} done
-          </span>
-        )}
+        {session && <TallyLine tally={session.tally} />}
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-8">
@@ -123,6 +120,55 @@ export default function Passages({ onBack }: { onBack: () => void }) {
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * The running score, in the header where it stays visible.
+ *
+ * Michael had done a couple of dozen passages and found no score anywhere:
+ * the percentage only existed in the session summary, and vanished with it.
+ *
+ * Two numbers, because they answer different questions. The percentage is how
+ * well the translations are going, over what has been attempted. "n of 200" is
+ * how far through the material he is. Rolling them into one would make the
+ * score sink as the set grows, which punishes him for the content I added.
+ */
+export function TallyLine({ tally }: { tally: PassageTally }) {
+  return (
+    <span className="flex items-center gap-2">
+      {tally.score !== null && <ScorePill score={tally.score} />}
+      <span>
+        {tally.attempted} of {tally.total} done
+      </span>
+    </span>
+  )
+}
+
+/** Same thresholds as the listening mark (ADR-040), so a number means the
+ *  same thing wherever it appears. */
+export function ScorePill({
+  score,
+  size = 'sm',
+}: {
+  score: number
+  size?: 'sm' | 'lg'
+}) {
+  const pct = Math.round(score)
+  const tone =
+    pct >= 100
+      ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300'
+      : pct >= 60
+        ? 'border-amber-400/40 bg-amber-400/10 text-amber-300'
+        : 'border-red-400/40 bg-red-400/10 text-red-300'
+  return (
+    <span
+      className={`inline-block rounded-full border font-semibold tabular-nums ${tone} ${
+        size === 'lg' ? 'px-3 py-1 text-lg' : 'px-2 py-0.5 text-xs'
+      }`}
+    >
+      {pct}%
+    </span>
   )
 }
 
