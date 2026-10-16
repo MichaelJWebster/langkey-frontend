@@ -478,3 +478,31 @@ export const postPassageAttempt = (
     `/api/v1/passages/${slug}/attempt`,
     { method: 'POST', body: JSON.stringify({ mark, answer, revealed }) },
   )
+
+// --- Games -------------------------------------------------------------------
+
+export interface GamePairOut {
+  en: string
+  no: string
+  note: string | null
+}
+
+export interface GameSet {
+  slug: string
+  /** Names the subsection the set belongs to; "matching" for flashcards. */
+  game: string
+  title: string
+  description: string
+  pairs: GamePairOut[]
+  played: number
+  /** Best completed round: fewest mistakes, then quickest. Null until one. */
+  best: { mistakes: number; seconds: number } | null
+}
+
+export const fetchGames = () => request<{ sets: GameSet[] }>('/api/v1/games')
+
+export const postGameRound = (slug: string, mistakes: number, seconds: number) =>
+  request<{ mistakes: number; seconds: number }>(`/api/v1/games/${slug}/round`, {
+    method: 'POST',
+    body: JSON.stringify({ mistakes, seconds }),
+  })

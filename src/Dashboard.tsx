@@ -17,6 +17,7 @@ import {
 import Glossary from './Glossary'
 import SpeakingSession from './SpeakingSession'
 import ListeningSession from './ListeningSession'
+import Games from './Games'
 import Reading from './Reading'
 import ReviewSession from './ReviewSession'
 
@@ -193,7 +194,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [breakdown, setBreakdown] = useState<SkillsBreakdown | null>(null)
   const [categories, setCategories] = useState<Categories | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [screen, setScreen] = useState<SkillId | 'glossary' | null>(null)
+  const [screen, setScreen] = useState<SkillId | 'glossary' | 'games' | null>(null)
 
   const refresh = useCallback(() => {
     Promise.all([fetchProgress(), fetchCategories(), fetchCefr(), fetchSkillsBreakdown()])
@@ -224,6 +225,10 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
       </SkillShell>
     )
   }
+
+  // Games brings its own shell: it has no CEFR subtitle to put in a SkillShell
+  // header, and it manages three levels of its own navigation.
+  if (screen === 'games') return <Games onBack={backToSkills} />
 
   if (screen && breakdown) {
     return (
@@ -273,6 +278,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                 onOpen={() => setScreen(id)}
               />
             ))}
+            <GamesRow onOpen={() => setScreen('games')} />
           </div>
 
           <p className="mt-5 text-center text-xs text-slate-500">
@@ -306,6 +312,52 @@ function Stat({ value, label }: { value: string; label: string }) {
       <div className="text-base font-bold text-slate-100">{value}</div>
       <div className="mt-0.5 text-[10px] text-slate-400">{label}</div>
     </div>
+  )
+}
+
+/**
+ * Games on the skills list, without a ring.
+ *
+ * The five skills above it each carry a CEFR ring and an "A1 achieved"
+ * descriptor. Games has neither: there is no Council of Europe can-do
+ * statement for matching ten words against the clock, and giving it a ring
+ * that looked the same but counted something else would make every ring on
+ * the page mean less. So it takes the full width where the ring and the
+ * milestone box would be, and says what is inside it instead.
+ */
+function GamesRow({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      onClick={onOpen}
+      className="flex w-full items-center gap-3.5 rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-white/25 hover:bg-white/10"
+    >
+      <span
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#0b1220]"
+        style={{ background: 'linear-gradient(135deg, #e879f9, #8b5cf6)' }}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className="h-[22px] w-[22px]"
+        >
+          <rect x="2" y="7" width="13" height="13" rx="2.5" />
+          <path d="M6.5 11.5h.01M10.5 15.5h.01" />
+          <path d="M9 7V5.5A2.5 2.5 0 0 1 11.5 3H19a3 3 0 0 1 3 3v7.5a2.5 2.5 0 0 1-2.5 2.5H18" />
+        </svg>
+      </span>
+      <span className="min-w-0 flex-grow">
+        <span className="block font-bold">Games</span>
+        <span className="block text-xs text-slate-400">
+          Matching, flashcards and other practice
+        </span>
+      </span>
+      <span className="text-lg text-fuchsia-300">›</span>
+    </button>
   )
 }
 
