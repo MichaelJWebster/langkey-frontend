@@ -78,7 +78,31 @@ export function alignedWith(left: Card[], right: Card[]): boolean {
   return left.some((card, i) => right[i]?.key === card.key)
 }
 
-/** What a card should read: the word, plus its note when it has one. */
+/**
+ * A card's identity on the board: side and pair together.
+ *
+ * The pair key alone identifies two cards, one per column, which is right for
+ * "is this pair matched" and wrong for anything about a single card. Flagging
+ * a wrong guess by key lit up its partner across the board as well -- which
+ * is to say it pointed straight at the correct answer.
+ */
+export function cardId(card: Card): string {
+  return `${card.side}-${card.key}`
+}
+
+/**
+ * What a card should read.
+ *
+ * The note appears on the English side only. It exists to separate two English
+ * words that would otherwise read identically -- "how long" is both `hvor
+ * lenge` and `hvor langt` -- and the Norwegian side has no such collision:
+ * those are already two different words. Repeating "(time)" there labelled the
+ * answer rather than the question.
+ *
+ * If a set ever needs the Norwegian disambiguated, the gate in
+ * `tests/test_games.py` fails rather than the board quietly becoming
+ * unplayable.
+ */
 export function labelOf(card: Card): string {
-  return card.note ? `${card.label} (${card.note})` : card.label
+  return card.side === 'en' && card.note ? `${card.label} (${card.note})` : card.label
 }

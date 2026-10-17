@@ -76,4 +76,16 @@ describe('labelOf', () => {
       'how long (time)',
     )
   })
+
+  // The note separates two English words that would otherwise read the same.
+  // "hvor lenge" and "hvor langt" are already different words, so repeating it
+  // on the Norwegian card labels the answer instead of the question.
+  it('leaves the Norwegian side unannotated', () => {
+    expect(labelOf({ key: 4, label: 'hvor lenge', note: 'time', side: 'no' })).toBe(
+      'hvor lenge',
+    )
+    expect(
+      labelOf({ key: 5, label: 'hvor langt', note: 'distance', side: 'no' }),
+    ).toBe('hvor langt')
+  })
 })

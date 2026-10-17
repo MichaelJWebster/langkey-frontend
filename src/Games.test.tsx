@@ -61,6 +61,10 @@ const card = (label: string) =>
 // property rather than reaching for toBeDisabled().
 const isDead = (label: string) => card(label).disabled
 
+/** The cards currently flashing as a wrong guess. */
+const flashing = () =>
+  screen.getAllByRole('button').filter((b) => b.getAttribute('data-state') === 'wrong')
+
 describe('navigation', () => {
   it('opens on the subsections, not on a game', async () => {
     render(<Games onBack={() => {}} />)
@@ -121,10 +125,7 @@ describe('the board', () => {
       const left = [...lists[0].querySelectorAll('button')].map((b) => b.textContent)
       const right = [...lists[1].querySelectorAll('button')].map((b) => b.textContent)
       const translation: Record<string, string> = Object.fromEntries(
-        QUESTION_WORDS.pairs.map((p) => [
-          p.note ? `${p.en} (${p.note})` : p.en,
-          p.note ? `${p.no} (${p.note})` : p.no,
-        ]),
+        QUESTION_WORDS.pairs.map((p) => [p.note ? `${p.en} (${p.note})` : p.en, p.no]),
       )
       left.forEach((en, idx) => {
         expect(right[idx]).not.toBe(translation[en!])
@@ -136,7 +137,10 @@ describe('the board', () => {
     await openSet()
     expect(card('how long (time)')).toBeTruthy()
     expect(card('how far (distance)')).toBeTruthy()
-    expect(card('hvor lenge (time)')).toBeTruthy()
+    // ...but the Norwegian side carries no note: those are already two
+    // different words, and repeating it labels the answer.
+    expect(card('hvor lenge')).toBeTruthy()
+    expect(card('hvor langt')).toBeTruthy()
   })
 })
 
@@ -150,6 +154,35 @@ describe('matching', () => {
     expect(isDead('what')).toBe(true)
     expect(isDead('hva')).toBe(true)
     expect(screen.getByText(/0 mistakes/)).toBeTruthy()
+  })
+
+  // Michael: "I noticed the UI flashed the correct option when I picked
+  // incorrectly. That's not helpful." The flash was keyed by pair rather than
+  // by card, so marking the two he had touched also marked their partners
+  // across the board -- pointing straight at both right answers.
+  it('flashes only the two cards picked, never their partners', async () => {
+    await openSet()
+    fireEvent.click(card('what'))
+    fireEvent.click(card('hvem'))
+
+    await waitFor(() => expect(screen.getByText(/1 mistake/)).toBeTruthy())
+    const lit = flashing().map((b) => b.textContent)
+
+    expect(lit.sort()).toEqual(['hvem', 'what'])
+    // The giveaway: "hva" answers "what", and "who" answers "hvem".
+    expect(lit).not.toContain('hva')
+    expect(lit).not.toContain('who')
+  })
+
+  // Real timers, not fake ones: openSet() waits on waitFor, which never
+  // advances under vi.useFakeTimers() and hangs the whole file.
+  it('clears the flash so the next guess starts clean', async () => {
+    await openSet()
+    fireEvent.click(card('what'))
+    fireEvent.click(card('hvem'))
+    expect(flashing()).toHaveLength(2)
+
+    await waitFor(() => expect(flashing()).toHaveLength(0), { timeout: 2000 })
   })
 
   it('counts a wrong pairing once and leaves both in play', async () => {
@@ -202,10 +235,8 @@ describe('finishing', () => {
       await waitFor(() => expect(screen.getByText(/1 mistake/)).toBeTruthy())
     }
     for (const p of QUESTION_WORDS.pairs) {
-      const en = p.note ? `${p.en} (${p.note})` : p.en
-      const no = p.note ? `${p.no} (${p.note})` : p.no
-      fireEvent.click(card(en))
-      fireEvent.click(card(no))
+      fireEvent.click(card(p.note ? `${p.en} (${p.note})` : p.en))
+      fireEvent.click(card(p.no))
     }
   }
 

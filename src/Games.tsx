@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchGames, postGameRound, type GameSet } from './api'
-import { deal, labelOf, type Card } from './matching-game'
+import { cardId, deal, labelOf, type Card } from './matching-game'
 
 const SUBSECTIONS: { game: string; label: string; blurb: string }[] = [
   {
@@ -216,7 +216,9 @@ export function Matching({
   const [board, setBoard] = useState(() => deal(set.pairs))
   const [picked, setPicked] = useState<Card | null>(null)
   const [matched, setMatched] = useState<Set<number>>(new Set())
-  const [wrong, setWrong] = useState<number[]>([])
+  // Identified by side *and* pair: flagging by pair key alone also lit the
+  // partner card across the board, which handed over the right answer.
+  const [wrong, setWrong] = useState<string[]>([])
   const [mistakes, setMistakes] = useState(0)
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
@@ -261,7 +263,7 @@ export function Matching({
     }
     // Wrong: flash both, count it once, and clear so the next tap starts over.
     setMistakes((n) => n + 1)
-    setWrong([picked.key, card.key])
+    setWrong([cardId(picked), cardId(card)])
     setPicked(null)
     window.setTimeout(() => setWrong([]), 450)
   }
@@ -354,7 +356,7 @@ function Column({
   cards: Card[]
   picked: Card | null
   matched: Set<number>
-  wrong: number[]
+  wrong: string[]
   onPick: (card: Card) => void
 }) {
   return (
@@ -364,13 +366,16 @@ function Column({
         {cards.map((card) => {
           const isMatched = matched.has(card.key)
           const isPicked = picked?.key === card.key && picked.side === card.side
-          const isWrong = wrong.includes(card.key)
+          const isWrong = wrong.includes(cardId(card))
           return (
-            <li key={`${card.side}-${card.key}`}>
+            <li key={cardId(card)}>
               <button
                 onClick={() => onPick(card)}
                 disabled={isMatched}
                 aria-pressed={isPicked}
+                data-state={
+                  isMatched ? 'matched' : isWrong ? 'wrong' : isPicked ? 'picked' : 'idle'
+                }
                 className={`w-full rounded-xl border px-3 py-3 text-center font-medium transition ${
                   isMatched
                     ? 'cursor-default border-emerald-400/30 bg-emerald-400/10 text-emerald-300/60'
