@@ -487,6 +487,11 @@ export interface GamePairOut {
   note: string | null
 }
 
+export interface GameBest {
+  mistakes: number
+  seconds: number
+}
+
 export interface GameSet {
   slug: string
   /** Names the subsection the set belongs to; "matching" for flashcards. */
@@ -496,13 +501,25 @@ export interface GameSet {
   pairs: GamePairOut[]
   played: number
   /** Best completed round: fewest mistakes, then quickest. Null until one. */
-  best: { mistakes: number; seconds: number } | null
+  best: GameBest | null
+}
+
+export interface GameRoundResult {
+  mistakes: number
+  seconds: number
+  /** The round beat everything before it. Decided by the server, which owns
+   *  the tiebreak rule and the rounding. */
+  best: boolean
+  /** The best round before this one; null on the first finished round. So
+   *  `best && previous` is "a new best", and `best && !previous` is just the
+   *  first time through. */
+  previous: GameBest | null
 }
 
 export const fetchGames = () => request<{ sets: GameSet[] }>('/api/v1/games')
 
 export const postGameRound = (slug: string, mistakes: number, seconds: number) =>
-  request<{ mistakes: number; seconds: number }>(`/api/v1/games/${slug}/round`, {
+  request<GameRoundResult>(`/api/v1/games/${slug}/round`, {
     method: 'POST',
     body: JSON.stringify({ mistakes, seconds }),
   })

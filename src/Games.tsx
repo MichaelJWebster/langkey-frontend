@@ -9,7 +9,13 @@
 // change — the same bargain the reading library makes with its `kind`.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { fetchGames, postGameRound, type GameSet } from './api'
+import {
+  fetchGames,
+  postGameRound,
+  type GameBest,
+  type GameRoundResult,
+  type GameSet,
+} from './api'
 import { cardId, deal, labelOf, type Card } from './matching-game'
 
 const SUBSECTIONS: { game: string; label: string; blurb: string }[] = [
@@ -186,13 +192,9 @@ function SetList({
             {s.best ? (
               <>
                 Best:{' '}
-                <span className="text-emerald-300">
-                  {s.pairs.length - s.best.mistakes >= s.pairs.length
-                    ? 'no mistakes'
-                    : `${s.best.mistakes} ${s.best.mistakes === 1 ? 'mistake' : 'mistakes'}`}
-                </span>
+                <span className="text-emerald-300">{describeBest(s.best)}</span>
                 {' · '}
-                {formatSeconds(s.best.seconds)} · played {s.played}{' '}
+                played {s.played}{' '}
                 {s.played === 1 ? 'time' : 'times'}
               </>
             ) : (
@@ -203,6 +205,15 @@ function SetList({
       ))}
     </div>
   )
+}
+
+/** A best score in words: "no mistakes, 42s". */
+function describeBest(best: GameBest): string {
+  const misses =
+    best.mistakes === 0
+      ? 'no mistakes'
+      : `${best.mistakes} ${best.mistakes === 1 ? 'mistake' : 'mistakes'}`
+  return `${misses}, ${formatSeconds(best.seconds)}`
 }
 
 function formatSeconds(seconds: number): string {
@@ -231,6 +242,7 @@ export function Matching({
   const [mistakes, setMistakes] = useState(0)
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [elapsed, setElapsed] = useState(0)
+  const [result, setResult] = useState<GameRoundResult | null>(null)
   const posted = useRef(false)
 
   const done = matched.size === set.pairs.length
@@ -252,7 +264,10 @@ export function Matching({
     // Fire and forget: a flaky network must not cost him the round he just
     // finished, and the next fetch re-reads the real best.
     postGameRound(set.slug, mistakes, Math.max(0.1, elapsed))
-      .then(onDone)
+      .then((r) => {
+        setResult(r)
+        onDone()
+      })
       .catch(() => undefined)
   }, [done, mistakes, elapsed, set.slug, onDone])
 
@@ -279,6 +294,7 @@ export function Matching({
 
   function again() {
     posted.current = false
+    setResult(null)
     setBoard(deal(set.pairs))
     setPicked(null)
     setMatched(new Set())
@@ -287,6 +303,13 @@ export function Matching({
     setStartedAt(null)
     setElapsed(0)
   }
+
+  // A first round is the best there is, but it has beaten nothing, so there is
+  // nothing to celebrate -- the server reports `previous: null` for exactly
+  // this case. Until the post lands (or if it never does) the standing best is
+  // the one the set arrived with, so the line reads the same as it always did.
+  const newBest = result !== null && result.best && result.previous !== null
+  const standing = result !== null ? result.previous : set.best
 
   return (
     <div className="mt-5">
@@ -322,14 +345,17 @@ export function Matching({
           <p className="text-2xl font-semibold text-slate-100">
             {mistakes === 0 ? 'Perfect — no mistakes' : `${mistakes} ${mistakes === 1 ? 'mistake' : 'mistakes'}`}
           </p>
+          {newBest && (
+            <p className="mt-2 inline-block rounded-full border border-emerald-400/40 bg-emerald-400/10 px-3 py-1 text-sm font-medium text-emerald-300">
+              ★ A new best
+            </p>
+          )}
           <p className="mt-1 text-sm text-slate-400">
             {set.pairs.length} pairs in {formatSeconds(elapsed)}
-            {set.best && (
+            {standing && (
               <>
                 {' · '}
-                best so far: {set.best.mistakes}{' '}
-                {set.best.mistakes === 1 ? 'mistake' : 'mistakes'},{' '}
-                {formatSeconds(set.best.seconds)}
+                {newBest ? 'beat' : 'best so far:'} {describeBest(standing)}
               </>
             )}
           </p>

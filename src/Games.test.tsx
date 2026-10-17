@@ -25,7 +25,12 @@ const QUESTION_WORDS: GameSet = {
   best: null,
 }
 
-const postGameRound = vi.fn(async () => ({ mistakes: 0, seconds: 1 }))
+const postGameRound = vi.fn(async () => ({
+  mistakes: 0,
+  seconds: 1,
+  best: true,
+  previous: null as { mistakes: number; seconds: number } | null,
+}))
 let sets: GameSet[] = [QUESTION_WORDS]
 
 vi.mock('./api', async (orig) => ({
@@ -255,18 +260,78 @@ describe('finishing', () => {
   })
 
   // Michael: "The flashcards question words game is not updating the best so
-  // far score." The panel read the GameSet captured when he opened the set, so
-  // the reload after the round had nowhere to land.
-  it('shows the best recorded after the round, not the one from before it', async () => {
-    sets = [{ ...QUESTION_WORDS, played: 1, best: { mistakes: 3, seconds: 90 } }]
-    postGameRound.mockImplementationOnce(async () => {
-      sets = [{ ...QUESTION_WORDS, played: 2, best: { mistakes: 0, seconds: 12 } }]
-      return { mistakes: 0, seconds: 12 }
+  // far score." The panel used to read the GameSet captured when the set was
+  // opened, so the reload after the round had nowhere to land. It now reads
+  // what the server said about the round it just recorded.
+  it('celebrates a round that beat the previous best', async () => {
+    postGameRound.mockResolvedValueOnce({
+      mistakes: 0,
+      seconds: 12,
+      best: true,
+      previous: { mistakes: 2, seconds: 40 },
     })
 
     await playThrough()
 
-    await waitFor(() => expect(screen.getByText(/best so far: 0 mistakes, 12s/)).toBeTruthy())
+    await waitFor(() => expect(screen.getByText(/A new best/)).toBeTruthy())
+    expect(screen.getByText(/beat 2 mistakes, 40s/)).toBeTruthy()
+  })
+
+  // `best` is true on a first round too -- it is the best there is. Saying
+  // "a new best" for beating nothing would cheapen it everywhere else, so
+  // the badge wants `previous` as well.
+  it('does not celebrate the first round, which has beaten nothing', async () => {
+    postGameRound.mockResolvedValueOnce({
+      mistakes: 0,
+      seconds: 12,
+      best: true,
+      previous: null,
+    })
+
+    await playThrough()
+
+    await waitFor(() => expect(screen.getByText('Play again')).toBeTruthy())
+    expect(screen.queryByText(/A new best/)).toBeNull()
+  })
+
+  it('shows the standing best when the round did not beat it', async () => {
+    postGameRound.mockResolvedValueOnce({
+      mistakes: 3,
+      seconds: 80,
+      best: false,
+      previous: { mistakes: 0, seconds: 12 },
+    })
+
+    await playThrough()
+
+    await waitFor(() => expect(screen.getByText(/best so far: no mistakes, 12s/)).toBeTruthy())
+    expect(screen.queryByText(/A new best/)).toBeNull()
+  })
+
+  it('clears the celebration when the next round starts', async () => {
+    postGameRound.mockResolvedValueOnce({
+      mistakes: 0,
+      seconds: 12,
+      best: true,
+      previous: { mistakes: 2, seconds: 40 },
+    })
+    await playThrough()
+    await waitFor(() => expect(screen.getByText(/A new best/)).toBeTruthy())
+
+    fireEvent.click(screen.getByText('Play again'))
+
+    expect(screen.queryByText(/A new best/)).toBeNull()
+  })
+
+  // The one place the set's own best is still read: before the server has
+  // answered, and if it never does.
+  it("falls back to the set's best when the round cannot be recorded", async () => {
+    sets = [{ ...QUESTION_WORDS, played: 4, best: { mistakes: 1, seconds: 30 } }]
+    postGameRound.mockRejectedValueOnce(new Error('offline'))
+
+    await playThrough()
+
+    await waitFor(() => expect(screen.getByText(/best so far: 1 mistake, 30s/)).toBeTruthy())
   })
 
   // This path was never broken -- the set list always rendered from the
