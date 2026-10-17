@@ -303,7 +303,9 @@ export interface SpeakingSession {
   attempts_for_pattern: number
 }
 
-export const fetchSpeakingPractice = (limit = 12) =>
+/** Phrases in one practice session. Kept in step with SESSION_PHRASES in
+ *  app/routes/speaking.py, which is the one that decides if this is omitted. */
+export const fetchSpeakingPractice = (limit = 8) =>
   request<SpeakingSession>(`/api/v1/speaking/practice?limit=${limit}`)
 
 export interface WordMark {
