@@ -165,6 +165,8 @@ export default function RecordButton({
       ? { blob: saved.blob, key: saved.id }
       : null
   const recording = status === 'recording'
+  // A take in progress: nothing to play back until it is finished.
+  const busy = recording || status === 'arming'
 
   return (
     <span className={`inline-flex flex-wrap items-center gap-1.5 ${className}`}>
@@ -204,39 +206,55 @@ export default function RecordButton({
         </svg>
       </button>
 
-      {current && !recording && (
-        <>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              playTake(current.blob, current.key)
-            }}
-            className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-slate-300 transition hover:bg-white/10"
-          >
-            ▸ You
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              stopPlayback()
-              void speak(text, referenceUrl)
-            }}
-            className="rounded-full border border-teal-400/25 bg-teal-400/10 px-2 py-0.5 text-[11px] font-medium text-teal-300 transition hover:bg-teal-400/20"
-          >
-            ▸ Slow reference
-          </button>
-        </>
-      )}
+      {/*
+        The record button must not move between press and stop: Michael is
+        saying the phrase, not looking for the button. The row is centred, so
+        anything that appears or disappears beside it while recording slides
+        it sideways. So the playback buttons are always laid out -- hidden,
+        not removed, while there is nothing to play or a take is in progress
+        -- and every status message lives on its own line below.
+      */}
+      <span
+        className={`inline-flex items-center gap-1.5 ${
+          current && !busy ? '' : 'invisible'
+        }`}
+        aria-hidden={!current || busy}
+        data-testid="playback-buttons"
+      >
+        <button
+          type="button"
+          disabled={!current || busy}
+          tabIndex={current && !busy ? 0 : -1}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (current) playTake(current.blob, current.key)
+          }}
+          className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-slate-300 transition hover:bg-white/10"
+        >
+          ▸ You
+        </button>
+        <button
+          type="button"
+          disabled={!current || busy}
+          tabIndex={current && !busy ? 0 : -1}
+          onClick={(e) => {
+            e.stopPropagation()
+            stopPlayback()
+            void speak(text, referenceUrl)
+          }}
+          className="rounded-full border border-teal-400/25 bg-teal-400/10 px-2 py-0.5 text-[11px] font-medium text-teal-300 transition hover:bg-teal-400/20"
+        >
+          ▸ Slow reference
+        </button>
+      </span>
 
-      {status === 'arming' && (
-        <span className="text-[11px] text-slate-500">opening mic…</span>
-      )}
-      {recording && <span className="text-[11px] text-rose-300">speak now</span>}
-      {status === 'saving' && <span className="text-[11px] text-slate-500">saving…</span>}
-      {checking && <span className="text-[11px] text-slate-500">checking…</span>}
-      {error && <span className="text-[11px] text-rose-300">{error}</span>}
+      <span className="block min-h-4 w-full basis-full text-center text-[11px]" data-testid="record-status">
+        {status === 'arming' && <span className="text-slate-500">opening mic…</span>}
+        {recording && <span className="text-rose-300">speak now</span>}
+        {status === 'saving' && <span className="text-slate-500">saving…</span>}
+        {checking && <span className="text-slate-500">checking…</span>}
+        {error && <span className="text-rose-300">{error}</span>}
+      </span>
       {transcript && (
         <span className="w-full basis-full">
           <WordFeedback
