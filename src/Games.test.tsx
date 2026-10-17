@@ -254,6 +254,38 @@ describe('finishing', () => {
     expect(postGameRound.mock.calls[0][1]).toBe(1)
   })
 
+  // Michael: "The flashcards question words game is not updating the best so
+  // far score." The panel read the GameSet captured when he opened the set, so
+  // the reload after the round had nowhere to land.
+  it('shows the best recorded after the round, not the one from before it', async () => {
+    sets = [{ ...QUESTION_WORDS, played: 1, best: { mistakes: 3, seconds: 90 } }]
+    postGameRound.mockImplementationOnce(async () => {
+      sets = [{ ...QUESTION_WORDS, played: 2, best: { mistakes: 0, seconds: 12 } }]
+      return { mistakes: 0, seconds: 12 }
+    })
+
+    await playThrough()
+
+    await waitFor(() => expect(screen.getByText(/best so far: 0 mistakes, 12s/)).toBeTruthy())
+  })
+
+  // This path was never broken -- the set list always rendered from the
+  // reloaded `sets`. Pinned anyway, because the fix moves the open set onto
+  // that same array and the list must keep working off it.
+  it('carries the new best back to the set list', async () => {
+    postGameRound.mockImplementationOnce(async () => {
+      sets = [{ ...QUESTION_WORDS, played: 1, best: { mistakes: 0, seconds: 12 } }]
+      return { mistakes: 0, seconds: 12 }
+    })
+    await playThrough()
+    await waitFor(() => expect(screen.getByText('Play again')).toBeTruthy())
+
+    fireEvent.click(screen.getByText('Back to sets'))
+
+    await waitFor(() => expect(screen.getByText(/played 1 time/)).toBeTruthy())
+    expect(screen.getByText(/12s/)).toBeTruthy()
+  })
+
   it('offers another round, reshuffled and reset', async () => {
     await playThrough()
     await waitFor(() => expect(screen.getByText('Play again')).toBeTruthy())

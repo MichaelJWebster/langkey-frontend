@@ -27,7 +27,7 @@ const labelForGame = (game: string) =>
 export default function Games({ onBack }: { onBack: () => void }) {
   const [sets, setSets] = useState<GameSet[] | null>(null)
   const [game, setGame] = useState<string | null>(null)
-  const [open, setOpen] = useState<GameSet | null>(null)
+  const [openSlug, setOpenSlug] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(() => {
@@ -38,11 +38,20 @@ export default function Games({ onBack }: { onBack: () => void }) {
 
   useEffect(load, [load])
 
+  // Derived from `sets`, never copied out of it. Holding the GameSet object
+  // itself froze it: finishing a round reloads the list, but the open set
+  // stayed the snapshot taken on the way in, so the "best so far" line under
+  // the finished board never moved -- which is the one place he is looking.
+  const open = useMemo(
+    () => (openSlug ? (sets?.find((s) => s.slug === openSlug) ?? null) : null),
+    [sets, openSlug],
+  )
+
   // Escape walks back one level at a time, as everywhere else.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape') return
-      if (open) setOpen(null)
+      if (open) setOpenSlug(null)
       else if (game) setGame(null)
       else onBack()
     }
@@ -61,7 +70,7 @@ export default function Games({ onBack }: { onBack: () => void }) {
   }, [sets])
 
   function back() {
-    if (open) setOpen(null)
+    if (open) setOpenSlug(null)
     else if (game) setGame(null)
     else onBack()
   }
@@ -93,7 +102,7 @@ export default function Games({ onBack }: { onBack: () => void }) {
         )}
 
         {sets && game && !open && (
-          <SetList sets={kinds.get(game) ?? []} onOpen={setOpen} />
+          <SetList sets={kinds.get(game) ?? []} onOpen={(s) => setOpenSlug(s.slug)} />
         )}
 
         {open && (
@@ -101,7 +110,7 @@ export default function Games({ onBack }: { onBack: () => void }) {
             key={open.slug}
             set={open}
             onDone={load}
-            onLeave={() => setOpen(null)}
+            onLeave={() => setOpenSlug(null)}
           />
         )}
       </div>
