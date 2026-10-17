@@ -49,6 +49,38 @@ function describe(status: number): string {
   return `Audio request failed (${status}).`
 }
 
+// Clips already fetched, so a word played out of one does not fetch it
+// again. The browser cache would serve it too; this skips the round trip.
+const clips = new Map<string, Blob>()
+const CLIPS_CAP = 16
+
+/**
+ * A clip as a blob, for playing a stretch of it (playback.playSegments).
+ * Reports a failure the same way speak() does and resolves null, so a
+ * caller can simply not offer the control.
+ */
+export async function fetchClip(audioUrl: string): Promise<Blob | null> {
+  const hit = clips.get(audioUrl)
+  if (hit) return hit
+  try {
+    const resp = await fetch(audioUrl)
+    if (!resp.ok) {
+      report({ url: audioUrl, status: resp.status, message: describe(resp.status) })
+      return null
+    }
+    const blob = await resp.blob()
+    if (clips.size >= CLIPS_CAP) {
+      const oldest = clips.keys().next().value
+      if (oldest !== undefined) clips.delete(oldest)
+    }
+    clips.set(audioUrl, blob)
+    return blob
+  } catch {
+    report({ url: audioUrl, status: 0, message: describe(0) })
+    return null
+  }
+}
+
 // Every play attempt takes a token, and anything newer invalidates it.
 // Loading a clip is asynchronous, so between the request and the player
 // existing there is nothing for stopSpeech() to stop -- two overlapping calls

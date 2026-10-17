@@ -28,6 +28,7 @@ export default function RecordButton({
   exampleId = null,
   text,
   referenceUrl,
+  scale = null,
   className = '',
 }: {
   itemId: number
@@ -35,6 +36,8 @@ export default function RecordButton({
   /** Spoken text, for the browser-TTS fallback when there is no Piper clip. */
   text: string
   referenceUrl?: string
+  /** The reference speed on screen, so a word can be cut from that clip. */
+  scale?: number | null
   className?: string
 }) {
   const [status, setStatus] = useState<Status>('idle')
@@ -236,7 +239,11 @@ export default function RecordButton({
       {error && <span className="text-[11px] text-rose-300">{error}</span>}
       {transcript && (
         <span className="w-full basis-full">
-          <WordFeedback transcript={transcript} />
+          <WordFeedback
+            transcript={transcript}
+            take={current ? { blob: current.blob, key: current.key } : null}
+            scale={scale}
+          />
         </span>
       )}
     </span>

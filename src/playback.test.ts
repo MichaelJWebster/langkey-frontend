@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_VOLUME, masterGain, normalisationGain } from './playback'
+import { DEFAULT_VOLUME, SEGMENT_PAD, masterGain, normalisationGain, segmentWindow } from './playback'
 
 const RATE = 48_000
 
@@ -77,5 +77,24 @@ describe('masterGain', () => {
     for (let v = 0.05; v <= 1; v += 0.05) {
       expect(masterGain(v)).toBeGreaterThan(masterGain(v - 0.05))
     }
+  })
+})
+
+describe('segmentWindow', () => {
+  it('pads a word a little either side, because alignment is to a 20 ms frame', () => {
+    const w = segmentWindow(1.0, 1.5, 4.0)
+    expect(w).toEqual({ offset: 1.0 - SEGMENT_PAD, duration: 0.5 + 2 * SEGMENT_PAD })
+  })
+
+  it('never runs off the start or the end of the clip', () => {
+    expect(segmentWindow(0.01, 0.3, 4.0)!.offset).toBe(0)
+    const tail = segmentWindow(3.8, 4.0, 4.0)!
+    expect(tail.offset + tail.duration).toBeCloseTo(4.0)
+  })
+
+  it('refuses an empty or inverted span rather than playing a click', () => {
+    expect(segmentWindow(1.0, 1.0, 4.0)).toBeNull()
+    expect(segmentWindow(1.5, 1.0, 4.0)).toBeNull()
+    expect(segmentWindow(1.0, 1.5, 0)).toBeNull()
   })
 })

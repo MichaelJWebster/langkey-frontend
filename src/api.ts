@@ -308,10 +308,21 @@ export interface SpeakingSession {
 export const fetchSpeakingPractice = (limit = 8) =>
   request<SpeakingSession>(`/api/v1/speaking/practice?limit=${limit}`)
 
+/** A stretch of a clip, in seconds from its start. */
+export interface WordSpan {
+  start: number
+  end: number
+}
+
 export interface WordMark {
   word: string
   verdict: 'said' | 'slipped' | 'missed'
   heard: string | null
+  /** Where in the take to hear this word back: the word the model found
+   *  here, right or wrong, or the stretch between its neighbours where a
+   *  missed word should have been. Null when there is nothing to point at
+   *  or the take was not placed (ADR-043). */
+  take?: WordSpan | null
 }
 
 export interface WordRecord {
@@ -329,7 +340,30 @@ export interface Transcript {
   words: WordMark[]
   history: WordRecord[]
   attempts_for_pattern: number
+  /** False when the aligner was not available, so every `take` is null for
+   *  that reason and not because nothing was heard. */
+  aligned?: boolean
 }
+
+/** One word of a reference clip, placed. */
+export interface ClipWord extends WordSpan {
+  word: string
+}
+
+export interface ClipWords {
+  url: string
+  scale: number
+  /** One per word of the sentence, in order; null where it could not be placed. */
+  words: (ClipWord | null)[]
+  model: string
+}
+
+/** Where each word sits in the reference clip for `text` at `scale`, cut from
+ *  the clip as actually spoken rather than synthesised on its own. */
+export const fetchClipWords = (text: string, scale: number) =>
+  request<ClipWords>(
+    `/api/v1/speaking/words?text=${encodeURIComponent(text)}&scale=${scale}`,
+  )
 
 /** Null when no speech backend is configured — the feature is simply absent. */
 export async function transcribeRecording(id: string): Promise<Transcript | null> {

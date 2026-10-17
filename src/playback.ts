@@ -153,22 +153,27 @@ export function normalisationGain(channel: Float32Array, sampleRate: number): nu
 
 const gains = new Map<string, number>()
 
-let source: AudioBufferSourceNode | null = null
+// Decoded clips, so playing a word out of one does not decode the whole
+// clip again. A handful is plenty: the reference and the take on screen.
+const decoded = new Map<string, AudioBuffer>()
+const DECODED_CAP = 8
+
+let sources: AudioBufferSourceNode[] = []
 let element: HTMLAudioElement | null = null
 let elementUrl: string | null = null
 let token = 0
 
 export function stop(): void {
   token += 1 // abandon anything still decoding
-  if (source) {
+  for (const node of sources) {
     try {
-      source.onended = null
-      source.stop()
+      node.onended = null
+      node.stop()
     } catch {
       /* already finished */
     }
-    source = null
   }
+  sources = []
   if (element) {
     element.pause()
     element = null
@@ -222,8 +227,7 @@ export async function play(blob: Blob, key: string): Promise<void> {
 
   let buffer: AudioBuffer
   try {
-    if (context.state === 'suspended') await context.resume()
-    buffer = await context.decodeAudioData(await blob.arrayBuffer())
+    buffer = await decode(context, blob, key)
   } catch {
     // Safari cannot decode webm/opus, and a truncated clip can fail here too.
     if (mine !== token) return
@@ -231,22 +235,129 @@ export async function play(blob: Blob, key: string): Promise<void> {
   }
   if (mine !== token) return
 
+  const node = context.createBufferSource()
+  node.buffer = buffer
+  const level = context.createGain()
+  level.gain.value = levelGain(buffer, key)
+  node.connect(level).connect(master)
+  node.onended = () => {
+    sources = sources.filter((n) => n !== node)
+  }
+  sources.push(node)
+  node.start()
+}
+
+async function decode(context: AudioContext, blob: Blob, key: string): Promise<AudioBuffer> {
+  const hit = decoded.get(key)
+  if (hit) return hit
+  if (context.state === 'suspended') await context.resume()
+  const buffer = await context.decodeAudioData(await blob.arrayBuffer())
+  if (decoded.size >= DECODED_CAP) {
+    const oldest = decoded.keys().next().value
+    if (oldest !== undefined) decoded.delete(oldest)
+  }
+  decoded.set(key, buffer)
+  return buffer
+}
+
+function levelGain(buffer: AudioBuffer, key: string): number {
   let gain = gains.get(key)
   if (gain === undefined) {
     gain = normalisationGain(buffer.getChannelData(0), buffer.sampleRate)
     gains.set(key, gain)
   }
+  return gain
+}
 
-  const node = context.createBufferSource()
-  node.buffer = buffer
-  const level = context.createGain()
-  level.gain.value = gain
-  node.connect(level).connect(master)
-  node.onended = () => {
-    if (source === node) source = null
+// --- one word out of a clip ---------------------------------------------------
+
+/** A stretch of one clip to play, and which ear to put it in. */
+export interface Segment {
+  blob: Blob
+  key: string
+  start: number
+  end: number
+  /** -1 hard left, 1 hard right, 0 or absent for the middle. */
+  pan?: number
+}
+
+// Alignment is to a 20 ms frame, and a boundary that falls a hair inside a
+// consonant clips it. A little either side costs nothing to hear.
+export const SEGMENT_PAD = 0.03
+// A hard cut inside a vowel clicks; ramps this short are inaudible.
+export const SEGMENT_FADE = 0.008
+
+/** The stretch to actually play: padded, clamped to the clip, never empty. */
+export function segmentWindow(
+  start: number,
+  end: number,
+  clipDuration: number,
+  pad = SEGMENT_PAD,
+): { offset: number; duration: number } | null {
+  if (!(clipDuration > 0) || !(end > start)) return null
+  const offset = Math.max(0, Math.min(clipDuration, start - pad))
+  const stop = Math.max(offset, Math.min(clipDuration, end + pad))
+  const duration = stop - offset
+  return duration > 0 ? { offset, duration } : null
+}
+
+/** Whether words can be cut out of a clip and placed in one ear: needs Web
+ *  Audio, which is also what decodes the take. The element fallback can do
+ *  neither, so callers hide the controls rather than offer a worse version. */
+export function canPlaySegments(): boolean {
+  return audioContext() !== null
+}
+
+/**
+ * Play one or more stretches of clips together, each levelled like a whole
+ * clip would be and each in the ear it asks for. Everything starts on the
+ * same tick, so the reference in one ear and the take in the other line up
+ * at the onset of the word -- the comparison Michael asked to be able to
+ * make. Rejects when Web Audio or the decode is unavailable.
+ */
+export async function playSegments(segments: Segment[]): Promise<void> {
+  stop()
+  const mine = token
+  const context = audioContext()
+  if (!context || !master) throw new Error('Web Audio is not available')
+
+  const ready: { buffer: AudioBuffer; segment: Segment }[] = []
+  for (const segment of segments) {
+    const buffer = await decode(context, segment.blob, segment.key)
+    if (mine !== token) return
+    ready.push({ buffer, segment })
   }
-  source = node
-  node.start()
+
+  const when = context.currentTime + 0.05
+  for (const { buffer, segment } of ready) {
+    const window = segmentWindow(segment.start, segment.end, buffer.duration)
+    if (!window) continue
+    const node = context.createBufferSource()
+    node.buffer = buffer
+
+    const level = context.createGain()
+    const gain = levelGain(buffer, segment.key)
+    const fade = Math.min(SEGMENT_FADE, window.duration / 4)
+    level.gain.setValueAtTime(0, when)
+    level.gain.linearRampToValueAtTime(gain, when + fade)
+    level.gain.setValueAtTime(gain, when + window.duration - fade)
+    level.gain.linearRampToValueAtTime(0, when + window.duration)
+
+    let tail: AudioNode = level
+    if (segment.pan && context.createStereoPanner) {
+      const panner = context.createStereoPanner()
+      panner.pan.value = Math.max(-1, Math.min(1, segment.pan))
+      level.connect(panner)
+      tail = panner
+    }
+    node.connect(level)
+    tail.connect(master)
+    node.onended = () => {
+      sources = sources.filter((n) => n !== node)
+    }
+    sources.push(node)
+    node.start(when, window.offset, window.duration)
+  }
 }
 
 // --- cues ---------------------------------------------------------------------

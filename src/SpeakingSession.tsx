@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchSpeakingPractice, type SpeakingPhrase, type SpeakingSession as Session } from './api'
 import RecordButton from './RecordButton'
-import SpeedChips, { speedUrl, useCopySpeed } from './SpeedChips'
+import SpeedChips, { DEFAULT_SCALE, speedUrl, useCopySpeed } from './SpeedChips'
 import { speak, stopSpeech } from './speech'
 
 export default function SpeakingSession({ onFinish }: { onFinish: () => void }) {
@@ -134,6 +134,7 @@ export default function SpeakingSession({ onFinish }: { onFinish: () => void }) 
             exampleId={phrase.example_id}
             text={phrase.text}
             referenceUrl={speedUrl(phrase.speeds, scale, phrase.audio_url)}
+            scale={scale ?? DEFAULT_SCALE}
           />
         </div>
 
