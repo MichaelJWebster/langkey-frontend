@@ -6,7 +6,7 @@
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GameSet } from './api'
+import type { GameRoundResult, GameSet } from './api'
 
 const QUESTION_WORDS: GameSet = {
   slug: 'question-words',
@@ -25,12 +25,14 @@ const QUESTION_WORDS: GameSet = {
   best: null,
 }
 
-const postGameRound = vi.fn(async () => ({
-  mistakes: 0,
-  seconds: 1,
-  best: true,
-  previous: null as { mistakes: number; seconds: number } | null,
-}))
+const postGameRound = vi.fn(
+  async (_slug: string, _mistakes: number, _seconds: number): Promise<GameRoundResult> => ({
+    mistakes: 0,
+    seconds: 1,
+    best: true,
+    previous: null,
+  }),
+)
 let sets: GameSet[] = [QUESTION_WORDS]
 
 vi.mock('./api', async (orig) => ({
@@ -340,7 +342,7 @@ describe('finishing', () => {
   it('carries the new best back to the set list', async () => {
     postGameRound.mockImplementationOnce(async () => {
       sets = [{ ...QUESTION_WORDS, played: 1, best: { mistakes: 0, seconds: 12 } }]
-      return { mistakes: 0, seconds: 12 }
+      return { mistakes: 0, seconds: 12, best: true, previous: null }
     })
     await playThrough()
     await waitFor(() => expect(screen.getByText('Play again')).toBeTruthy())

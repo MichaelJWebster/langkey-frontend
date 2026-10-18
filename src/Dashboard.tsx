@@ -18,12 +18,24 @@ import Glossary from './Glossary'
 import SpeakingSession from './SpeakingSession'
 import ListeningSession from './ListeningSession'
 import Games from './Games'
-import Reading from './Reading'
+import Library from './Library'
+import Passages from './Passages'
 import ReviewSession from './ReviewSession'
 
-type SkillId = 'vocabulary' | 'listening' | 'reading' | 'writing' | 'speaking'
+type SkillId = 'vocabulary' | 'listening' | 'reading' | 'writing' | 'speaking' | 'conversation'
 
-const SKILL_ORDER: SkillId[] = ['vocabulary', 'listening', 'reading', 'writing', 'speaking']
+// Speaking and conversation are separate rows because CEFR separates them:
+// spoken production (saying it) and spoken interaction (talking with
+// someone). Pronunciation practice trains the first; nothing trains the
+// second yet, and one ring could not honestly stand for both.
+const SKILL_ORDER: SkillId[] = [
+  'vocabulary',
+  'listening',
+  'reading',
+  'writing',
+  'speaking',
+  'conversation',
+]
 
 // Per-skill aurora gradient [from, to].
 const GRADS: Record<SkillId, [string, string]> = {
@@ -32,14 +44,16 @@ const GRADS: Record<SkillId, [string, string]> = {
   reading: ['#34d399', '#22d3ee'],
   writing: ['#fbbf24', '#fb7185'],
   speaking: ['#2dd4bf', '#0ea5e9'],
+  conversation: ['#fb923c', '#f472b6'],
 }
 
 const SUBS: Record<SkillId, string> = {
   vocabulary: 'Flashcards & spaced review',
   listening: 'Dictation & word recognition',
-  reading: 'Interleaved Norwegian / English texts',
+  reading: 'A1 passages to translate',
   writing: 'Produce Norwegian from English',
-  speaking: 'Pronunciation & conversation',
+  speaking: 'Pronunciation — say it, hear it back',
+  conversation: 'Talk turn by turn — coming later',
 }
 
 const ICONS: Record<SkillId, string> = {
@@ -52,6 +66,7 @@ const ICONS: Record<SkillId, string> = {
   writing: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
   speaking:
     'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8',
+  conversation: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2zM8 9h8M8 13h5',
 }
 
 // CEFR can-do descriptors shown in the milestone boxes.
@@ -66,7 +81,9 @@ const CANDO: Record<string, Record<SkillId, string>> = {
     writing:
       'You can write short, simple phrases and fill in forms with personal details — name, nationality, address.',
     speaking:
-      'You can introduce yourself, ask and answer simple personal questions, and interact in a simple way.',
+      'You can use simple phrases and sentences to describe where you live and people you know.',
+    conversation:
+      'You can interact in a simple way if the other person speaks slowly and helps — asking and answering simple questions on very familiar topics.',
   },
   A2: {
     vocabulary:
@@ -75,7 +92,9 @@ const CANDO: Record<string, Record<SkillId, string>> = {
       'You catch the main point in short, clear messages and announcements about everyday matters.',
     reading: 'You read short, simple everyday texts — ads, menus, timetables, short letters.',
     writing: 'You write short notes and messages, and simple personal letters.',
-    speaking: 'You handle short social exchanges and describe your background in simple terms.',
+    speaking: 'You describe your family, living conditions, education and work in simple terms.',
+    conversation:
+      'You handle short social exchanges and simple, direct exchanges of information on routine tasks.',
   },
 }
 
@@ -194,7 +213,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [breakdown, setBreakdown] = useState<SkillsBreakdown | null>(null)
   const [categories, setCategories] = useState<Categories | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [screen, setScreen] = useState<SkillId | 'glossary' | 'games' | null>(null)
+  const [screen, setScreen] = useState<SkillId | 'glossary' | 'games' | 'library' | null>(null)
 
   const refresh = useCallback(() => {
     Promise.all([fetchProgress(), fetchCategories(), fetchCefr(), fetchSkillsBreakdown()])
@@ -229,6 +248,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   // Games brings its own shell: it has no CEFR subtitle to put in a SkillShell
   // header, and it manages three levels of its own navigation.
   if (screen === 'games') return <Games onBack={backToSkills} />
+  // Reading for interest, likewise: a section, not a skill with a ring.
+  if (screen === 'library') return <Library onBack={backToSkills} />
 
   if (screen && breakdown) {
     return (
@@ -278,7 +299,20 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
                 onOpen={() => setScreen(id)}
               />
             ))}
-            <GamesRow onOpen={() => setScreen('games')} />
+            <SectionRow
+              title="Games"
+              subtitle="Matching, flashcards and other practice"
+              gradient={['#e879f9', '#8b5cf6']}
+              icon={GAMES_ICON}
+              onOpen={() => setScreen('games')}
+            />
+            <SectionRow
+              title="Reading for interest"
+              subtitle="Novels and folktales with the English beside them — not A1 based"
+              gradient={['#38bdf8', '#34d399']}
+              icon={LIBRARY_ICON}
+              onOpen={() => setScreen('library')}
+            />
           </div>
 
           <p className="mt-5 text-center text-xs text-slate-500">
@@ -316,16 +350,29 @@ function Stat({ value, label }: { value: string; label: string }) {
 }
 
 /**
- * Games on the skills list, without a ring.
+ * A section on the skills list, without a ring: Games, and Reading for interest.
  *
- * The five skills above it each carry a CEFR ring and an "A1 achieved"
- * descriptor. Games has neither: there is no Council of Europe can-do
- * statement for matching ten words against the clock, and giving it a ring
- * that looked the same but counted something else would make every ring on
- * the page mean less. So it takes the full width where the ring and the
- * milestone box would be, and says what is inside it instead.
+ * The skills above each carry a CEFR ring and an "A1 achieved" descriptor.
+ * These have neither: there is no Council of Europe can-do statement for
+ * matching ten words against the clock, or for reading Hamsun far above your
+ * level for the pleasure of it, and a ring that looked the same but counted
+ * something else would make every ring on the page mean less. So each takes
+ * the full width where the ring and the milestone box would be, and says what
+ * is inside it instead.
  */
-function GamesRow({ onOpen }: { onOpen: () => void }) {
+function SectionRow({
+  title,
+  subtitle,
+  gradient,
+  icon,
+  onOpen,
+}: {
+  title: string
+  subtitle: string
+  gradient: [string, string]
+  icon: ReactNode
+  onOpen: () => void
+}) {
   return (
     <button
       onClick={onOpen}
@@ -333,7 +380,7 @@ function GamesRow({ onOpen }: { onOpen: () => void }) {
     >
       <span
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#0b1220]"
-        style={{ background: 'linear-gradient(135deg, #e879f9, #8b5cf6)' }}
+        style={{ background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})` }}
       >
         <svg
           viewBox="0 0 24 24"
@@ -345,21 +392,35 @@ function GamesRow({ onOpen }: { onOpen: () => void }) {
           aria-hidden="true"
           className="h-[22px] w-[22px]"
         >
-          <rect x="2" y="7" width="13" height="13" rx="2.5" />
-          <path d="M6.5 11.5h.01M10.5 15.5h.01" />
-          <path d="M9 7V5.5A2.5 2.5 0 0 1 11.5 3H19a3 3 0 0 1 3 3v7.5a2.5 2.5 0 0 1-2.5 2.5H18" />
+          {icon}
         </svg>
       </span>
       <span className="min-w-0 flex-grow">
-        <span className="block font-bold">Games</span>
-        <span className="block text-xs text-slate-400">
-          Matching, flashcards and other practice
-        </span>
+        <span className="block font-bold">{title}</span>
+        <span className="block text-xs text-slate-400">{subtitle}</span>
       </span>
-      <span className="text-lg text-fuchsia-300">›</span>
+      <span className="text-lg" style={{ color: gradient[0] }}>
+        ›
+      </span>
     </button>
   )
 }
+
+const GAMES_ICON = (
+  <>
+    <rect x="2" y="7" width="13" height="13" rx="2.5" />
+    <path d="M6.5 11.5h.01M10.5 15.5h.01" />
+    <path d="M9 7V5.5A2.5 2.5 0 0 1 11.5 3H19a3 3 0 0 1 3 3v7.5a2.5 2.5 0 0 1-2.5 2.5H18" />
+  </>
+)
+
+const LIBRARY_ICON = (
+  <>
+    <path d="M4 19.5V4.5A1.5 1.5 0 0 1 5.5 3H9v18H5.5A1.5 1.5 0 0 1 4 19.5z" />
+    <path d="M9 3h4v18H9" />
+    <path d="M14.5 4.2l3.6-.9 3.4 16.4-3.6.9z" />
+  </>
+)
 
 function SkillRow({
   skill,
@@ -541,25 +602,43 @@ function SkillScreen({
   }
   if (skill === 'reading') {
     const r = breakdown.reading
-    // Two halves, two different measures. Only the A1 passages are marked, so
-    // only they get a percentage; the library is read, not scored.
+    // Reading is the A1 passages alone now; the library is its own section
+    // on the dashboard (Reading for interest), read rather than marked.
     const marked =
       r.passages.score !== null
         ? `A1 translation ${Math.round(r.passages.score)}% over ${r.passages.attempted} of ${r.passages.total}`
         : `${r.passages.total} A1 passages to translate`
     return (
-      <SkillShell
-        skill="reading"
-        title="Reading"
-        subtitle={`${marked} · ${r.sentences_read} of ${r.sentences_total} library sentences read`}
-        onBack={onBack}
-      >
-        <Reading onBack={onBack} passages={r.passages} />
+      <SkillShell skill="reading" title="Reading" subtitle={marked} onBack={onBack}>
+        <Passages onBack={onBack} />
       </SkillShell>
     )
   }
   if (skill === 'speaking') {
-    return <SpeakingScreen onBack={onBack} />
+    // Straight into pronunciation: with conversation its own skill, a menu
+    // of one would be a click for nothing.
+    return (
+      <SkillShell
+        skill="speaking"
+        title="Pronunciation"
+        subtitle="say the phrase, and see which sounds landed"
+        onBack={onBack}
+      >
+        <SpeakingSession onFinish={onBack} />
+      </SkillShell>
+    )
+  }
+  if (skill === 'conversation') {
+    return (
+      <SkillShell skill="conversation" title="Conversation" subtitle="not built yet" onBack={onBack}>
+        <p className="text-slate-300">
+          Turn-by-turn conversation with a Norwegian-speaking character. It needs the
+          recording and recognition that pronunciation already has, plus a model to answer
+          with — so it comes after pronunciation, not instead of it. When it exists, this
+          ring will be scored from the conversations themselves.
+        </p>
+      </SkillShell>
+    )
   }
   // writing
   return (
@@ -773,70 +852,3 @@ function CategoryCard({
   )
 }
 
-// --- Speaking: pronunciation now, conversation later --------------------------
-
-type SpeakingPart = 'pronunciation' | 'conversation'
-
-function SpeakingScreen({ onBack }: { onBack: () => void }) {
-  const [part, setPart] = useState<SpeakingPart | null>(null)
-
-  if (part === 'pronunciation') {
-    return (
-      <SkillShell
-        skill="speaking"
-        title="Pronunciation"
-        subtitle="say the phrase, and see which sounds landed"
-        onBack={() => setPart(null)}
-      >
-        <SpeakingSession onFinish={() => setPart(null)} />
-      </SkillShell>
-    )
-  }
-
-  if (part === 'conversation') {
-    return (
-      <SkillShell
-        skill="speaking"
-        title="Conversation"
-        subtitle="not built yet"
-        onBack={() => setPart(null)}
-      >
-        <p className="text-slate-300">
-          Turn-by-turn conversation with a Norwegian-speaking character is the last piece of
-          the speaking milestone. It needs the same recording and recognition this section
-          already has, plus a model to answer with — so it comes after pronunciation, not
-          instead of it.
-        </p>
-      </SkillShell>
-    )
-  }
-
-  return (
-    <SkillShell skill="speaking" title="Speaking" subtitle="two ways to practise" onBack={onBack}>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <button
-          onClick={() => setPart('pronunciation')}
-          className="rounded-xl border border-white/15 p-5 text-left transition hover:border-teal-400/50 hover:bg-white/10"
-        >
-          <span className="font-medium text-slate-100">Pronunciation</span>
-          <p className="mt-1 text-sm text-slate-400">
-            Hear a phrase as slowly as you need, say it back, and see which words came
-            through — with a running record of the sounds that keep slipping.
-          </p>
-        </button>
-        <button
-          onClick={() => setPart('conversation')}
-          className="rounded-xl border border-white/10 p-5 text-left opacity-70 transition hover:border-white/20 hover:bg-white/5"
-        >
-          <span className="font-medium text-slate-300">Conversation</span>
-          <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-400">
-            later
-          </span>
-          <p className="mt-1 text-sm text-slate-500">
-            Talk to a Norwegian-speaking character, turn by turn.
-          </p>
-        </button>
-      </div>
-    </SkillShell>
-  )
-}

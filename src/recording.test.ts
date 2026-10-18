@@ -7,7 +7,10 @@ import { startRecording } from './recording'
 
 class FakeAnalyser {
   fftSize = 256
-  constructor(private readonly live: () => boolean) {}
+  private readonly live: () => boolean
+  constructor(live: () => boolean) {
+    this.live = live
+  }
   getFloatTimeDomainData(buf: Float32Array) {
     buf.fill(this.live() ? 0.01 : 0)
   }
@@ -18,7 +21,12 @@ class FakeRecorder {
   state = 'recording'
   mimeType = 'audio/webm;codecs=opus'
   private listeners: Record<string, (e: unknown) => void> = {}
-  constructor(public stream: unknown, public options?: unknown) {}
+  stream: unknown
+  options?: unknown
+  constructor(stream: unknown, options?: unknown) {
+    this.stream = stream
+    this.options = options
+  }
   addEventListener(name: string, fn: (e: unknown) => void) {
     this.listeners[name] = fn
   }

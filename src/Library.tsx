@@ -1,3 +1,15 @@
+// Reading for interest: novels and folktales in the original, with the English
+// beside them. Well above A1, and read rather than marked.
+//
+// Its own section on the dashboard, under Games -- Michael: "I'd also like to
+// split the Reading for Interest section out of Reading and have it as a
+// section similar to Games under Games on the screen." It was the second half
+// of Reading until 2026-10-18; Reading is now the A1 passages alone. Like
+// Games it has no CEFR ring of its own, though the sentences read here still
+// count toward the reading ring (ADR-041): reading a novel is reading.
+//
+// Three levels: categories -> text list -> reader.
+
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   fetchTextPage,
@@ -8,31 +20,13 @@ import {
   type TextSummary,
 } from './api'
 import { categorise, type Category } from './categories'
-import Passages, { ScorePill } from './Passages'
-import type { PassageTally } from './api'
 
-// --- Shell -------------------------------------------------------------------
-
-/** Which half of Reading the learner is in. Null is the top-level choice. */
-type Section = 'a1' | 'interest'
-
-export default function Reading({
-  onBack,
-  passages,
-}: {
-  onBack: () => void
-  /** The A1 standing, handed down so the section card can show it without a
-   *  second fetch. Optional: the library half of Reading does not need it. */
-  passages?: PassageTally
-}) {
-  const [section, setSection] = useState<Section | null>(null)
+export default function Library({ onBack }: { onBack: () => void }) {
   const [texts, setTexts] = useState<TextSummary[] | null>(null)
   const [kind, setKind] = useState<string | null>(null)
   const [open, setOpen] = useState<TextSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // The library is only needed by the second section, but it is a cheap call
-  // and fetching it up front lets the section card show how much is in there.
   useEffect(() => {
     fetchTexts()
       .then(setTexts)
@@ -42,161 +36,65 @@ export default function Reading({
   const categories = useMemo(() => categorise(texts ?? []), [texts])
   const current = categories.find((c) => c.kind === kind) ?? null
 
-  // Escape goes back one level at a time: reader -> category -> library ->
-  // sections -> out.
+  // Escape goes back one level at a time: reader -> category -> out.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape' || open) return
       if (kind) setKind(null)
-      else if (section) setSection(null)
       else onBack()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onBack, open, kind, section])
+  }, [onBack, open, kind])
 
   if (open) return <Reader text={open} onBack={() => setOpen(null)} />
-  if (section === 'a1') return <Passages onBack={() => setSection(null)} />
 
   function back() {
     if (current) setKind(null)
-    else if (section) setSection(null)
     else onBack()
   }
+
+  const sentenceCount = (texts ?? []).reduce((n, t) => n + t.sentence_count, 0)
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between text-xs text-slate-400">
         <button
           onClick={back}
-          title={
-            current
-              ? 'Back to categories (Esc)'
-              : section
-                ? 'Back to Reading (Esc)'
-                : 'Back to dashboard (Esc)'
-          }
+          title={current ? 'Back to categories (Esc)' : 'Back to dashboard (Esc)'}
           className="rounded-full px-1.5 py-0.5 font-medium transition hover:bg-white/10 hover:text-slate-200"
         >
-          {current ? '← Categories' : section ? '← Reading' : '← Back'}
+          {current ? '← Categories' : '← Back'}
         </button>
-        <span>
-          {section === 'interest'
-            ? 'Interleaved Norwegian–English reading'
-            : 'Reading'}
-        </span>
+        <span>Interleaved Norwegian–English reading</span>
       </div>
       <div className="rounded-2xl border border-white/10 bg-white/5 p-8">
         <h1 className="text-xl font-semibold">
-          📖 Reading
-          {section === 'interest' && (
-            <span className="text-slate-400">
-              {' · '}
-              {current ? current.label : 'For interest'}
-            </span>
-          )}
+          📚 Reading for interest
+          {current && <span className="text-slate-400"> · {current.label}</span>}
         </h1>
-        {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
-
-        {section === null && (
-          <SectionIndex
-            textCount={texts?.length ?? 0}
-            sentenceCount={(texts ?? []).reduce((n, t) => n + t.sentence_count, 0)}
-            passages={passages}
-            onPick={setSection}
-          />
-        )}
-
-        {section === 'interest' && (
-          <>
-            {!texts && !error && <p className="mt-4 text-slate-400">Loading library…</p>}
-            {texts && texts.length === 0 && (
-              <p className="mt-4 text-slate-300">
-                The library is empty — import a text with the backend scripts
-                (find_texts, prepare_text, import_text).
-              </p>
-            )}
-            {current ? (
-              <TextList texts={current.texts} onOpen={setOpen} />
-            ) : (
-              <CategoryIndex categories={categories} onPick={setKind} />
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// --- The two halves of Reading -----------------------------------------------
-
-function SectionIndex({
-  textCount,
-  sentenceCount,
-  passages,
-  onPick,
-}: {
-  textCount: number
-  sentenceCount: number
-  passages?: PassageTally
-  onPick: (s: Section) => void
-}) {
-  return (
-    <div className="mt-5 grid gap-3">
-      <button
-        onClick={() => onPick('a1')}
-        className="rounded-xl border border-white/15 p-4 text-left transition hover:border-sky-400/50 hover:bg-white/10"
-      >
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="font-medium text-slate-100">A1 Reading and translation</span>
-          {passages && passages.score !== null && <ScorePill score={passages.score} />}
-        </div>
-        <p className="mt-0.5 text-sm text-slate-400">
-          Short passages built from the words you are learning. Translate them into
-          English and mark your own answer.
-        </p>
-        {passages &&
-          (passages.attempted > 0 ? (
-            <p className="mt-2 text-xs text-slate-500">
-              {passages.attempted} of {passages.total} done ·{' '}
-              <span className="text-emerald-300">{passages.got} got it</span>
-              {passages.partly > 0 && (
-                <>
-                  {' · '}
-                  <span className="text-amber-300">{passages.partly} partly</span>
-                </>
-              )}
-              {passages.missed > 0 && (
-                <>
-                  {' · '}
-                  <span className="text-rose-300">{passages.missed} missed</span>
-                </>
-              )}
-            </p>
-          ) : (
-            <p className="mt-2 text-xs text-slate-500">
-              {passages.total} passages · not started
-            </p>
-          ))}
-      </button>
-      <button
-        onClick={() => onPick('interest')}
-        className="rounded-xl border border-white/15 p-4 text-left transition hover:border-sky-400/50 hover:bg-white/10"
-      >
-        <span className="font-medium text-slate-100">
-          Reading for interest (not A1 based)
-        </span>
-        <p className="mt-0.5 text-sm text-slate-400">
-          Novels and folktales in the original, with the English beside them. Well
-          above A1 — read for the pleasure of it.
-        </p>
-        {textCount > 0 && (
-          <p className="mt-2 text-xs text-slate-500">
-            {textCount} {textCount === 1 ? 'text' : 'texts'} ·{' '}
-            {sentenceCount.toLocaleString()} sentences
+        {!current && texts && texts.length > 0 && (
+          <p className="mt-1 text-sm text-slate-400">
+            Novels and folktales in the original, with the English beside them. Well above
+            A1 — read for the pleasure of it. {texts.length}{' '}
+            {texts.length === 1 ? 'text' : 'texts'} · {sentenceCount.toLocaleString()}{' '}
+            sentences.
           </p>
         )}
-      </button>
+        {error && <p className="mt-4 text-sm text-red-300">{error}</p>}
+        {!texts && !error && <p className="mt-4 text-slate-400">Loading library…</p>}
+        {texts && texts.length === 0 && (
+          <p className="mt-4 text-slate-300">
+            The library is empty — import a text with the backend scripts (find_texts,
+            prepare_text, import_text).
+          </p>
+        )}
+        {current ? (
+          <TextList texts={current.texts} onOpen={setOpen} />
+        ) : (
+          <CategoryIndex categories={categories} onPick={setKind} />
+        )}
+      </div>
     </div>
   )
 }

@@ -90,10 +90,10 @@ export default function Passages({ onBack }: { onBack: () => void }) {
       <div className="mb-4 flex items-center justify-between text-xs text-slate-400">
         <button
           onClick={onBack}
-          title="Back to Reading (Esc)"
+          title="Back (Esc)"
           className="rounded-full px-1.5 py-0.5 font-medium transition hover:bg-white/10 hover:text-slate-200"
         >
-          ← Reading
+          ← Back
         </button>
         {session && !done && (
           <span>
