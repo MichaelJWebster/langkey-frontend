@@ -169,86 +169,94 @@ export default function RecordButton({
   const busy = recording || status === 'arming'
 
   return (
-    <span className={`inline-flex flex-wrap items-center gap-1.5 ${className}`}>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          void toggle()
-        }}
-        disabled={status === 'saving' || status === 'arming'}
-        aria-label={recording ? `Stop recording: ${text}` : `Record yourself saying: ${text}`}
-        title={recording ? 'Stop recording' : 'Record yourself'}
-        className={`inline-flex items-center justify-center rounded-full p-1.5 transition disabled:opacity-50 ${
-          recording
-            ? 'animate-pulse bg-rose-500/20 text-rose-300'
-            : 'text-slate-400 hover:bg-white/10 hover:text-rose-300'
-        }`}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-5 w-5"
+    // A column: the button row on top, status and feedback stacked beneath.
+    // The record button must not move between press and stop -- Michael is
+    // saying the phrase, not looking for the button -- and it is centred, so
+    // its row has to be centred on its own. In the wrapping row this used to
+    // be, anything that appeared while recording widened the whole box (a
+    // wrapping inline-flex sizes to all its items laid end to end, even the
+    // ones that wrap), and "speak now" alone slid the button 27.8 px left,
+    // measured in the browser. Here the row is centred within a centred
+    // column, so nothing beneath it can move it.
+    <span className={`inline-flex flex-col items-center gap-1 ${className}`}>
+      <span className="inline-flex items-center gap-1.5" data-testid="record-row">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            void toggle()
+          }}
+          disabled={status === 'saving' || status === 'arming'}
+          aria-label={recording ? `Stop recording: ${text}` : `Record yourself saying: ${text}`}
+          title={recording ? 'Stop recording' : 'Record yourself'}
+          className={`inline-flex items-center justify-center rounded-full p-1.5 transition disabled:opacity-50 ${
+            recording
+              ? 'animate-pulse bg-rose-500/20 text-rose-300'
+              : 'text-slate-400 hover:bg-white/10 hover:text-rose-300'
+          }`}
         >
-          {recording ? (
-            <rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" />
-          ) : (
-            <>
-              <rect x="9" y="2" width="6" height="12" rx="3" />
-              <path d="M5 11a7 7 0 0 0 14 0" />
-              <path d="M12 18v4" />
-            </>
-          )}
-        </svg>
-      </button>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5"
+          >
+            {recording ? (
+              <rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" />
+            ) : (
+              <>
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M5 11a7 7 0 0 0 14 0" />
+                <path d="M12 18v4" />
+              </>
+            )}
+          </svg>
+        </button>
 
-      {/*
-        The record button must not move between press and stop: Michael is
-        saying the phrase, not looking for the button. The row is centred, so
-        anything that appears or disappears beside it while recording slides
-        it sideways. So the playback buttons are always laid out -- hidden,
-        not removed, while there is nothing to play or a take is in progress
-        -- and every status message lives on its own line below.
-      */}
-      <span
-        className={`inline-flex items-center gap-1.5 ${
-          current && !busy ? '' : 'invisible'
-        }`}
-        aria-hidden={!current || busy}
-        data-testid="playback-buttons"
-      >
-        <button
-          type="button"
-          disabled={!current || busy}
-          tabIndex={current && !busy ? 0 : -1}
-          onClick={(e) => {
-            e.stopPropagation()
-            if (current) playTake(current.blob, current.key)
-          }}
-          className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-slate-300 transition hover:bg-white/10"
+        {/*
+          The playback buttons share the row, so they are always laid out --
+          hidden, not removed, while there is nothing to play or a take is in
+          progress -- or the row would change width as they came and went.
+        */}
+        <span
+          className={`inline-flex items-center gap-1.5 ${
+            current && !busy ? '' : 'invisible'
+          }`}
+          aria-hidden={!current || busy}
+          data-testid="playback-buttons"
         >
-          ▸ You
-        </button>
-        <button
-          type="button"
-          disabled={!current || busy}
-          tabIndex={current && !busy ? 0 : -1}
-          onClick={(e) => {
-            e.stopPropagation()
-            stopPlayback()
-            void speak(text, referenceUrl)
-          }}
-          className="rounded-full border border-teal-400/25 bg-teal-400/10 px-2 py-0.5 text-[11px] font-medium text-teal-300 transition hover:bg-teal-400/20"
-        >
-          ▸ Slow reference
-        </button>
+          <button
+            type="button"
+            disabled={!current || busy}
+            tabIndex={current && !busy ? 0 : -1}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (current) playTake(current.blob, current.key)
+            }}
+            className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-slate-300 transition hover:bg-white/10"
+          >
+            ▸ You
+          </button>
+          <button
+            type="button"
+            disabled={!current || busy}
+            tabIndex={current && !busy ? 0 : -1}
+            onClick={(e) => {
+              e.stopPropagation()
+              stopPlayback()
+              void speak(text, referenceUrl)
+            }}
+            className="rounded-full border border-teal-400/25 bg-teal-400/10 px-2 py-0.5 text-[11px] font-medium text-teal-300 transition hover:bg-teal-400/20"
+          >
+            ▸ Slow reference
+          </button>
+        </span>
       </span>
 
-      <span className="block min-h-4 w-full basis-full text-center text-[11px]" data-testid="record-status">
+      <span className="block min-h-4 text-center text-[11px]" data-testid="record-status">
         {status === 'arming' && <span className="text-slate-500">opening mic…</span>}
         {recording && <span className="text-rose-300">speak now</span>}
         {status === 'saving' && <span className="text-slate-500">saving…</span>}
@@ -256,7 +264,7 @@ export default function RecordButton({
         {error && <span className="text-rose-300">{error}</span>}
       </span>
       {transcript && (
-        <span className="w-full basis-full">
+        <span className="self-stretch">
           <WordFeedback
             transcript={transcript}
             take={current ? { blob: current.blob, key: current.key } : null}

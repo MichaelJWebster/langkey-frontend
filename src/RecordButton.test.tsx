@@ -6,8 +6,14 @@
 //
 // The row is centred, so the button holds still only if nothing beside it
 // appears or disappears between press and stop. jsdom has no layout, so these
-// pin the structure that guarantees it: the same elements, in the same order,
-// before and during a take, with every status message on its own line.
+// pin the structure that guarantees it -- and a structural test has already
+// been wrong once: the first fix put "speak now" on its own wrapped line,
+// passed here, and still moved the button 27.8 px in the browser, because a
+// wrapping inline-flex sizes to every item laid end to end. So the property
+// pinned now is the stronger one: the row holds the button and the playback
+// buttons and nothing else, and everything that changes during a take lives
+// outside it. Measured in Chromium after the fix: 501.7 px at idle, opening
+// mic, speak now, with a long error and with a 640 px panel beneath.
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -104,13 +110,27 @@ describe('the record button holds still', () => {
     }
   })
 
-  it('puts "speak now" on its own line, not beside the button', async () => {
+  it('keeps "speak now" out of the button row altogether', async () => {
     render(<RecordButton itemId={1} text="Om vinteren går vi på ski i marka." />)
     await startTake()
 
     const status = screen.getByTestId('record-status')
     expect(status.textContent).toBe('speak now')
-    expect(status.className).toContain('basis-full')
+    const row = screen.getByTestId('record-row')
+    expect(row.contains(status)).toBe(false)
+    // The row is the button and the playback buttons, and nothing else.
+    expect(rowShape()).toEqual(['Stop recording', 'playback-buttons'])
+  })
+
+  it('centres the row on its own, in a column', () => {
+    render(<RecordButton itemId={1} text="Om vinteren går vi på ski i marka." />)
+    const column = screen.getByTestId('record-row').parentElement!
+    // flex-col + items-center: each child is centred independently, so a
+    // wide status line or feedback panel beneath cannot shift the row. A
+    // wrapping row here is exactly the layout that moved the button.
+    expect(column.className).toContain('flex-col')
+    expect(column.className).toContain('items-center')
+    expect(column.className).not.toContain('flex-wrap')
   })
 
   it('stops from the same button that started it', async () => {
