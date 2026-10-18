@@ -4,6 +4,7 @@ import { clean, isDiacriticSlip, wordCredit } from './matching'
 import { wrongTone } from './playback'
 import { hasMistake, skeleton, type Slot } from './skeleton'
 import { speak, stopSpeech } from './speech'
+import { speedLabel } from './SpeedChips'
 
 type WordMark = { word: string; state: 'ok' | 'slip' | 'wrong' }
 
@@ -497,10 +498,13 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
         </button>
         <p className="mt-2 text-center text-xs text-slate-400">R to replay</p>
         {current.kind === 'dictation' && (
-          <div className="mt-2 flex justify-center gap-1.5">
-            {current.speeds.map((sp, i) => {
+          <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+            {current.speeds.map((sp) => {
               const active = (scale ?? current.suggested_scale) === sp.scale
-              const label = ['🐢 very slow', 'slow', 'normal'][i] ?? String(sp.scale)
+              // By speed, not by position: the ladder grew from three rungs
+              // to five, and a label picked by index would have named 2.8
+              // "very slow" here and "slow" in pronunciation.
+              const label = speedLabel(sp.scale)
               return (
                 <button
                   key={sp.scale}

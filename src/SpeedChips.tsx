@@ -8,13 +8,18 @@
 import { useState } from 'react'
 import type { CopySpeed } from './api'
 
-const LABELS: Record<string, string> = {
+/** One set of names for the speed ladder, shared by pronunciation and
+ *  dictation since they offer the same five speeds (ADR-046). */
+export const LABELS: Record<string, string> = {
   '4': 'slowest',
   '3.4': 'very slow',
   '2.8': 'slow',
   '2.2': 'easier',
   '1.6': 'natural',
 }
+
+/** The name of a speed, or the number itself for one off the ladder. */
+export const speedLabel = (scale: number): string => LABELS[String(scale)] ?? String(scale)
 const KEY = 'langkey.copySpeed'
 export const DEFAULT_SCALE = 3.4
 

@@ -27,10 +27,13 @@ const DICTATION = {
   target: 'Jeg bor i Oslo.',
   translation: 'I live in Oslo.',
   suggested_scale: 1.6,
+  // The same five speeds as pronunciation (ADR-046).
   speeds: [
-    { scale: 2.8, url: '/audio/veryslow.wav' },
-    { scale: 2.2, url: '/audio/slow.wav' },
-    { scale: 1.6, url: '/audio/normal.wav' },
+    { scale: 4, url: '/audio/4.0.wav' },
+    { scale: 3.4, url: '/audio/3.4.wav' },
+    { scale: 2.8, url: '/audio/2.8.wav' },
+    { scale: 2.2, url: '/audio/2.2.wav' },
+    { scale: 1.6, url: '/audio/1.6.wav' },
   ],
 }
 
@@ -66,7 +69,7 @@ describe('listening autoplay', () => {
     // changes identity -- and it is speech.ts that guarantees only one of them
     // becomes audible. See speech.test.ts.
     for (const call of speak.mock.calls) {
-      expect(call).toEqual([DICTATION.target, '/audio/normal.wav'])
+      expect(call).toEqual([DICTATION.target, '/audio/1.6.wav'])
     }
   })
 
@@ -75,12 +78,27 @@ describe('listening autoplay', () => {
     await waitFor(() => expect(speak).toHaveBeenCalled())
     speak.mockClear()
 
-    screen.getByText(/very slow/).click()
+    screen.getByText('very slow').click()
 
     await waitFor(() => expect(speak).toHaveBeenCalled())
     // Once, with the slow clip: twice is what stacked two clips on top of
     // each other and made it sound louder instead of slower.
     expect(speak).toHaveBeenCalledTimes(1)
-    expect(speak).toHaveBeenCalledWith(DICTATION.target, '/audio/veryslow.wav')
+    expect(speak).toHaveBeenCalledWith(DICTATION.target, '/audio/3.4.wav')
+  })
+
+  // Michael: "For the listening practice we only have 3 speeds. I'd like the
+  // same speeds as for the speaking section - ie. 5 speeds."
+  it('offers all five speeds, named as pronunciation names them', async () => {
+    render(<ListeningSession onFinish={() => {}} />)
+    await waitFor(() => expect(speak).toHaveBeenCalled())
+
+    for (const label of ['slowest', 'very slow', 'slow', 'easier', 'natural']) {
+      expect(screen.getByText(label)).toBeTruthy()
+    }
+    screen.getByText('slowest').click()
+    await waitFor(() =>
+      expect(speak).toHaveBeenLastCalledWith(DICTATION.target, '/audio/4.0.wav'),
+    )
   })
 })
