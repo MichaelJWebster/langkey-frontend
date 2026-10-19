@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Editor backup files (Emacs foo~, and similar)
+*~
