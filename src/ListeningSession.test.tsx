@@ -7,7 +7,7 @@
 // which sounded louder rather than slower.
 
 import { StrictMode } from 'react'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const speak = vi.fn(async (_text: string, _url?: string | null) => {})
@@ -42,7 +42,12 @@ const DICTATION = {
 // effect fires again. That is the real mount behaviour and the reason the
 // guarantee of one audible clip has to live in the speech layer.
 vi.mock('./api', () => ({
-  fetchListening: async () => ({ exercises: [structuredClone(DICTATION)] }),
+  fetchListening: async () => ({
+    exercises: [
+      structuredClone(DICTATION),
+      { ...structuredClone(DICTATION), example_id: 2, target: 'Hun bor i Bergen.' },
+    ],
+  }),
   postAttempt: async () => ({ status: 'ok' }),
 }))
 
@@ -100,5 +105,25 @@ describe('listening autoplay', () => {
     await waitFor(() =>
       expect(speak).toHaveBeenLastCalledWith(DICTATION.target, '/audio/4.0.wav'),
     )
+  })
+
+  // Michael: "when I play the next phrase after selecting "slowest" the speed
+  // switches back to natural. Could we keep the speed where I set it, until I
+  // change it?"
+  it('keeps the chosen speed for the next sentence', async () => {
+    render(<ListeningSession onFinish={() => {}} />)
+    await waitFor(() => expect(speak).toHaveBeenCalled())
+
+    screen.getByText('slowest').click()
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: DICTATION.target } })
+    screen.getByText('Check').click()
+    speak.mockClear()
+    ;(await screen.findByText('Next')).click()
+
+    await waitFor(() =>
+      expect(speak).toHaveBeenCalledWith('Hun bor i Bergen.', '/audio/4.0.wav'),
+    )
+    expect(speak).not.toHaveBeenCalledWith('Hun bor i Bergen.', '/audio/1.6.wav')
+    expect(screen.getByText('slowest').className).toContain('sky-400')
   })
 })

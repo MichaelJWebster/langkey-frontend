@@ -78,7 +78,7 @@ function CharLegend() {
           <p className="mt-2 text-xs text-slate-400">Keys: Enter check/next · R replay · H hint · Esc exit.</p>
           <p className="mt-2 text-xs text-slate-400">
             Sessions adapt: sentence speed and the recognition/transcription mix follow your
-            recent results, and you can override the speed on any sentence.
+            recent results. Pick a speed and it stays until you change it.
           </p>
         </div>
       )}
@@ -211,6 +211,15 @@ type HintFeedback =
   | { kind: 'fix'; marks: HintMark[] }
   | { kind: 'complete' }
 
+// The speed to play: the learner's pick while this sentence offers it, else the
+// sentence's suggestion. The pick survives from one sentence to the next.
+function effectiveScale(
+  ex: { speeds: { scale: number }[]; suggested_scale: number },
+  picked: number | null,
+): number {
+  return picked !== null && ex.speeds.some((s) => s.scale === picked) ? picked : ex.suggested_scale
+}
+
 export default function ListeningSession({ onFinish }: { onFinish: () => void }) {
   const [exercises, setExercises] = useState<ListeningExercise[] | null>(null)
   const [index, setIndex] = useState(0)
@@ -238,7 +247,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
   const play = useCallback(() => {
     if (!current) return
     if (current.kind === 'dictation') {
-      const chosen = scale ?? current.suggested_scale
+      const chosen = effectiveScale(current, scale)
       const speed = current.speeds.find((s) => s.scale === chosen) ?? current.speeds[0]
       void speak(current.target, speed.url)
     } else {
@@ -279,7 +288,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
         hints: hintPresses,
         score: mark,
         speed:
-          current.kind === 'dictation' ? scale ?? current.suggested_scale : undefined,
+          current.kind === 'dictation' ? effectiveScale(current, scale) : undefined,
         answer: answered ?? undefined,
       }).catch(() => undefined)
     },
@@ -293,7 +302,8 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
     setHintWords(0)
     setHintPresses(0)
     setHintFeedback(null)
-    setScale(null)
+    // The chosen speed carries over: a learner who picked "slowest" wants the
+    // next sentence slow too, not snapped back to the suggestion.
     setIndex((i) => i + 1)
   }, [])
 
@@ -500,7 +510,7 @@ export default function ListeningSession({ onFinish }: { onFinish: () => void })
         {current.kind === 'dictation' && (
           <div className="mt-2 flex flex-wrap justify-center gap-1.5">
             {current.speeds.map((sp) => {
-              const active = (scale ?? current.suggested_scale) === sp.scale
+              const active = effectiveScale(current, scale) === sp.scale
               // By speed, not by position: the ladder grew from three rungs
               // to five, and a label picked by index would have named 2.8
               // "very slow" here and "slow" in pronunciation.
