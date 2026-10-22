@@ -18,6 +18,7 @@ import Glossary from './Glossary'
 import SpeakingSession from './SpeakingSession'
 import ListeningSession from './ListeningSession'
 import Games from './Games'
+import Grammar from './Grammar'
 import Library from './Library'
 import Passages from './Passages'
 import ReviewSession from './ReviewSession'
@@ -213,7 +214,7 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [breakdown, setBreakdown] = useState<SkillsBreakdown | null>(null)
   const [categories, setCategories] = useState<Categories | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [screen, setScreen] = useState<SkillId | 'glossary' | 'games' | 'library' | null>(null)
+  const [screen, setScreen] = useState<SkillId | 'glossary' | 'games' | 'grammar' | 'library' | null>(null)
 
   const refresh = useCallback(() => {
     Promise.all([fetchProgress(), fetchCategories(), fetchCefr(), fetchSkillsBreakdown()])
@@ -248,6 +249,8 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
   // Games brings its own shell: it has no CEFR subtitle to put in a SkillShell
   // header, and it manages three levels of its own navigation.
   if (screen === 'games') return <Games onBack={backToSkills} />
+  // Grammar, likewise: there is no can-do statement for word order on its own.
+  if (screen === 'grammar') return <Grammar onBack={backToSkills} />
   // Reading for interest, likewise: a section, not a skill with a ring.
   if (screen === 'library') return <Library onBack={backToSkills} />
 
@@ -300,6 +303,13 @@ export default function Dashboard({ onLogout }: { onLogout: () => void }) {
               />
             ))}
             <SectionRow
+              title="Grammar practice"
+              subtitle="Word order, questions, negation, nouns, tenses, pronouns"
+              gradient={['#5eead4', '#818cf8']}
+              icon={GRAMMAR_ICON}
+              onOpen={() => setScreen('grammar')}
+            />
+            <SectionRow
               title="Games"
               subtitle="Matching, flashcards and other practice"
               gradient={['#e879f9', '#8b5cf6']}
@@ -350,7 +360,7 @@ function Stat({ value, label }: { value: string; label: string }) {
 }
 
 /**
- * A section on the skills list, without a ring: Games, and Reading for interest.
+ * A section on the skills list, without a ring: Grammar, Games, and Reading for interest.
  *
  * The skills above each carry a CEFR ring and an "A1 achieved" descriptor.
  * These have neither: there is no Council of Europe can-do statement for
@@ -405,6 +415,16 @@ function SectionRow({
     </button>
   )
 }
+
+const GRAMMAR_ICON = (
+  <>
+    <rect x="3" y="5" width="6" height="5" rx="1.2" />
+    <rect x="10.5" y="5" width="4.5" height="5" rx="1.2" />
+    <rect x="16.5" y="5" width="4.5" height="5" rx="1.2" />
+    <path d="M12.75 13v3.5M12.75 16.5l-2-2M12.75 16.5l2-2" />
+    <path d="M4 20h16" />
+  </>
+)
 
 const GAMES_ICON = (
   <>

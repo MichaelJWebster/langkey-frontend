@@ -559,3 +559,62 @@ export const postGameRound = (slug: string, mistakes: number, seconds: number) =
     method: 'POST',
     body: JSON.stringify({ mistakes, seconds }),
   })
+
+// --- Grammar -----------------------------------------------------------------
+
+export interface GrammarUnit {
+  slug: string
+  title: string
+  blurb: string
+  /** A review unit draws on every other unit in its topic. */
+  review: boolean
+  total: number
+  /** Distinct exercises answered, and how many were right the last time. */
+  seen: number
+  right: number
+}
+
+export interface GrammarTopic {
+  slug: string
+  title: string
+  blurb: string
+  units: GrammarUnit[]
+}
+
+export type GrammarKind = 'choose' | 'build' | 'transform' | 'fix' | 'fill'
+
+export interface GrammarExercise {
+  slug: string
+  kind: GrammarKind
+  /** The unit it belongs to; in a review round, the rule it came from. */
+  unit: string
+  /** May mark up grammar words as [[key]] or [[key|label]]. */
+  instr: string
+  prompt: string | null
+  cue: string | null
+  hint: string | null
+  tiles: string[] | null
+  options: string[] | null
+  answers: string[]
+  why: string
+  /** Which row of the rule diagram explains it. */
+  ref: string | null
+}
+
+export interface GrammarRound {
+  topic: string
+  unit: string
+  title: string
+  exercises: GrammarExercise[]
+}
+
+export const fetchGrammar = () => request<{ topics: GrammarTopic[] }>('/api/v1/grammar')
+
+export const fetchGrammarRound = (topic: string, unit: string) =>
+  request<GrammarRound>(`/api/v1/grammar/${topic}/${unit}/round`)
+
+export const postGrammarAttempt = (slug: string, correct: boolean, answer: string) =>
+  request<{ slug: string; correct: boolean }>('/api/v1/grammar/attempts', {
+    method: 'POST',
+    body: JSON.stringify({ slug, correct, answer }),
+  })
