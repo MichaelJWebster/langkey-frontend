@@ -41,7 +41,7 @@ vi.mock('./recording', () => ({
 // jsdom has no layout; the thread scrolls itself into view.
 Element.prototype.scrollTo = vi.fn()
 
-const SPEEDS = [4, 3.4, 2.8, 2.2, 1.6].map((scale) => ({ scale, url: `/a/${scale}.wav` }))
+const SPEEDS = [4, 3.4, 2.5, 1.6].map((scale) => ({ scale, url: `/a/${scale}.wav` }))
 const line = (text: string, en = 'gloss'): Line => ({ text, en, audio_url: '/a/x.wav', speeds: SPEEDS })
 
 const ANSWERS = [
@@ -87,6 +87,7 @@ beforeEach(() => {
   api.confirmTurn.mockResolvedValue(NEXT_STEP)
 })
 afterEach(() => {
+  localStorage.clear()
   cleanup()
   vi.clearAllMocks()
 })
@@ -197,6 +198,12 @@ describe('Conversation thread', () => {
       expect(api.confirmTurn).toHaveBeenCalledWith('c1', 't1', { answer_id: 'trott' }),
     )
     expect(await screen.findByRole('button', { name: 'Jeg er litt trøtt.' })).toBeTruthy()
+  })
+
+  it('plays lines at the conversational speed by default', async () => {
+    const { speakToEnd } = await import('./speech')
+    await openThread()
+    expect(speakToEnd).toHaveBeenCalledWith('Hvordan har du det?', '/a/2.5.wav')
   })
 
   it('a finished conversation offers the next one', async () => {

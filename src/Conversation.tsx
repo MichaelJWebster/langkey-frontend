@@ -28,7 +28,7 @@ import {
   type TurnResult,
 } from './api'
 import { canRecord, describeMicError, releaseTake, startRecording, type ActiveRecording } from './recording'
-import SpeedChips, { speedUrl, useCopySpeed } from './SpeedChips'
+import SpeedChips, { speedUrl, useConversationSpeed } from './SpeedChips'
 import { speakToEnd, stopSpeech } from './speech'
 
 // --- look ----------------------------------------------------------------------
@@ -264,7 +264,7 @@ function Thread({
   const [shownEn, setShownEn] = useState<Set<string>>(new Set())
   const [correcting, setCorrecting] = useState<string | null>(null)
   const [menu, setMenu] = useState(false)
-  const [scale, pickSpeed] = useCopySpeed()
+  const [scale, pickSpeed] = useConversationSpeed()
   const recording = useRef<ActiveRecording | null>(null)
   const alive = useRef(0) // bumped on unmount and on every new playback chain
   const scroller = useRef<HTMLDivElement>(null)

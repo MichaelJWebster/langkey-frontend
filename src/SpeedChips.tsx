@@ -14,6 +14,9 @@ export const LABELS: Record<string, string> = {
   '4': 'slowest',
   '3.4': 'very slow',
   '2.8': 'slow',
+  // Conversation only: halfway between very slow and natural by measured
+  // speaking time (CONVERSATION_SCALES on the server).
+  '2.5': 'conversational',
   '2.2': 'easier',
   '1.6': 'natural',
 }
@@ -44,6 +47,34 @@ function saveSpeed(scale: number) {
 export function speedUrl(speeds: CopySpeed[], scale: number | null, fallback: string): string {
   if (scale === null) return fallback
   return speeds.find((s) => s.scale === scale)?.url ?? fallback
+}
+
+// Conversation keeps its own choice: it runs on its own ladder and default
+// (2.5), and the pace that suits imitating one phrase is not the pace of a chat.
+const CONVERSATION_KEY = 'langkey.conversationSpeed'
+export const CONVERSATION_SCALE = 2.5
+
+/** The conversation's remembered speed, defaulting to the conversational rung. */
+export function useConversationSpeed(): [number, (scale: number) => void] {
+  const [scale, setScale] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(CONVERSATION_KEY)
+      return raw === null ? CONVERSATION_SCALE : Number(raw)
+    } catch {
+      return CONVERSATION_SCALE
+    }
+  })
+  return [
+    scale,
+    (next: number) => {
+      setScale(next)
+      try {
+        localStorage.setItem(CONVERSATION_KEY, String(next))
+      } catch {
+        /* the choice just does not survive the session */
+      }
+    },
+  ]
 }
 
 /** The remembered choice, and a setter that remembers it. */
