@@ -141,3 +141,38 @@ export async function speak(_text: string, audioUrl?: string | null): Promise<vo
     report({ url: audioUrl, status: 0, message: 'The browser refused to play the clip.' })
   }
 }
+
+/**
+ * Play a clip and resolve when it has finished -- or been stopped, or failed
+ * to play -- so clips can be chained. Resolves true only if it played to the
+ * end; a caller playing a sequence stops at the first false.
+ */
+export async function speakToEnd(_text: string, audioUrl?: string | null): Promise<boolean> {
+  let ended: (finished: boolean) => void = () => undefined
+  const done = new Promise<boolean>((resolve) => {
+    ended = resolve
+  })
+  stopSpeech()
+  const token = playToken
+  if (!audioUrl) {
+    report({ url: '', status: 0, message: 'No audio is available for this text.' })
+    return false
+  }
+  try {
+    const resp = await fetch(audioUrl)
+    if (token !== playToken) return false
+    if (!resp.ok) {
+      report({ url: audioUrl, status: resp.status, message: describe(resp.status) })
+      return false
+    }
+    const blob = await resp.blob()
+    if (token !== playToken) return false
+    await play(blob, audioUrl, () => ended(token === playToken))
+    if (lastFailure) clearAudioFailure()
+  } catch {
+    if (token !== playToken) return false
+    report({ url: audioUrl, status: 0, message: describe(0) })
+    return false
+  }
+  return done
+}

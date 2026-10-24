@@ -618,3 +618,110 @@ export const postGrammarAttempt = (slug: string, correct: boolean, answer: strin
     method: 'POST',
     body: JSON.stringify({ slug, correct, answer }),
   })
+
+// --- Conversation (ROADMAP M3 step 5) ----------------------------------------
+
+/** Something the character says, with its clip on every speed rung. */
+export interface Line {
+  text: string
+  en: string
+  audio_url: string
+  speeds: CopySpeed[]
+}
+
+export interface DialogueAnswer {
+  id: string
+  text: string
+  en: string
+  /** "Jeg forstår ikke." / "Kan du gjenta?" — accepted on every line. */
+  universal: boolean
+}
+
+export interface DialogueNode {
+  id: string
+  line: Line
+  answers: DialogueAnswer[]
+}
+
+export interface Dialogue {
+  slug: string
+  title: string
+  title_en: string
+  blurb: string
+  level: number
+  character: { name: string; role: string }
+  turns_min: number
+  turns_max: number
+  finished: number
+  unlocked: boolean
+  /** Title of the dialogue to finish first, when this one is locked. */
+  unlock_after: string | null
+}
+
+export interface ConversationStart {
+  id: string
+  dialogue: Dialogue
+  node: DialogueNode
+  unclear: Line
+  choice: Line
+}
+
+export interface Step {
+  reply: Line | null
+  node: DialogueNode | null
+  repeat: boolean
+  finished: boolean
+}
+
+export type Decision = 'accepted' | 'choice' | 'unclear'
+
+export interface TurnResult {
+  turn_id: string
+  decision: Decision
+  reason: string
+  transcript: string | null
+  picked: DialogueAnswer | null
+  offered: DialogueAnswer[]
+  step: Step | null
+}
+
+export const fetchDialogues = () => request<Dialogue[]>('/api/v1/conversation/dialogues')
+
+export const startConversation = (slug: string) =>
+  request<ConversationStart>('/api/v1/conversation/start', {
+    method: 'POST',
+    body: JSON.stringify({ slug }),
+  })
+
+/** Send one spoken answer. Multipart, so it cannot go through request(). */
+export async function sendTurn(
+  conversationId: string,
+  take: { blob: Blob; mimeType: string; durationMs: number },
+): Promise<TurnResult> {
+  const form = new FormData()
+  form.set('duration_ms', String(take.durationMs))
+  form.set('audio', new File([take.blob], 'turn', { type: take.mimeType }))
+  const token = getToken()
+  const resp = await fetch(`/api/v1/conversation/${conversationId}/turn`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  })
+  if (!resp.ok) {
+    if (resp.status === 401) clearToken()
+    const body = await resp.json().catch(() => null)
+    throw new Error(typeof body?.detail === 'string' ? body.detail : 'Could not send your answer')
+  }
+  return resp.json()
+}
+
+export type Confirmation =
+  | { answer_id: string; how?: 'choice' | 'list' }
+  | { text: string }
+  | { retry: true }
+
+export const confirmTurn = (conversationId: string, turnId: string, confirmation: Confirmation) =>
+  request<Step>(`/api/v1/conversation/${conversationId}/turn/${turnId}/confirm`, {
+    method: 'POST',
+    body: JSON.stringify(confirmation),
+  })

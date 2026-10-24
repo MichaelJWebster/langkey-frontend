@@ -16,6 +16,7 @@ import {
 } from './api'
 import Glossary from './Glossary'
 import SpeakingSession from './SpeakingSession'
+import Conversation from './Conversation'
 import ListeningSession from './ListeningSession'
 import Games from './Games'
 import Grammar from './Grammar'
@@ -54,7 +55,7 @@ const SUBS: Record<SkillId, string> = {
   reading: 'A1 passages to translate',
   writing: 'Produce Norwegian from English',
   speaking: 'Pronunciation — say it, hear it back',
-  conversation: 'Talk turn by turn — coming later',
+  conversation: 'Talk turn by turn with a character',
 }
 
 const ICONS: Record<SkillId, string> = {
@@ -650,13 +651,13 @@ function SkillScreen({
   }
   if (skill === 'conversation') {
     return (
-      <SkillShell skill="conversation" title="Conversation" subtitle="not built yet" onBack={onBack}>
-        <p className="text-slate-300">
-          Turn-by-turn conversation with a Norwegian-speaking character. It needs the
-          recording and recognition that pronunciation already has, plus a model to answer
-          with — so it comes after pronunciation, not instead of it. When it exists, this
-          ring will be scored from the conversations themselves.
-        </p>
+      <SkillShell
+        skill="conversation"
+        title="Conversation"
+        subtitle="talk turn by turn — answer out loud"
+        onBack={onBack}
+      >
+        <Conversation onBack={onBack} />
       </SkillShell>
     )
   }

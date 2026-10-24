@@ -163,8 +163,20 @@ let element: HTMLAudioElement | null = null
 let elementUrl: string | null = null
 let token = 0
 
+// Callers waiting for a clip to end (play's onEnded). A stopped clip never
+// fires `ended`, so stop() releases them too: a chain of clips must be told
+// it was cut short, not left waiting for ever.
+let endings: (() => void)[] = []
+
+function releaseEndings(): void {
+  const waiting = endings
+  endings = []
+  waiting.forEach((f) => f())
+}
+
 export function stop(): void {
   token += 1 // abandon anything still decoding
+  releaseEndings()
   for (const node of sources) {
     try {
       node.onended = null
@@ -184,7 +196,7 @@ export function stop(): void {
   }
 }
 
-function playThroughElement(blob: Blob, mine: number): Promise<void> {
+function playThroughElement(blob: Blob, mine: number, onEnded?: () => void): Promise<void> {
   const url = URL.createObjectURL(blob)
   const audio = new Audio(url)
   audio.volume = Math.min(1, masterGain(volume))
@@ -198,6 +210,13 @@ function playThroughElement(blob: Blob, mine: number): Promise<void> {
     URL.revokeObjectURL(url)
   }
   audio.addEventListener('ended', done)
+  if (onEnded) {
+    endings.push(onEnded)
+    audio.addEventListener('ended', () => {
+      endings = endings.filter((f) => f !== onEnded)
+      onEnded()
+    })
+  }
   return audio.play().then(
     () => {
       if (mine !== token) {
@@ -218,30 +237,45 @@ function playThroughElement(blob: Blob, mine: number): Promise<void> {
  * `key` identifies the clip for the level cache — the source URL, so the same
  * clip is only measured once per session. Rejects if the browser refuses to
  * play, which is the caller's cue to report it.
+ *
+ * Resolves once the clip has *started*. `onEnded`, if given, is called when
+ * it finishes -- or when anything stops it -- for callers that play one clip
+ * after another (a conversation reply, then the next line).
  */
-export async function play(blob: Blob, key: string): Promise<void> {
+export async function play(blob: Blob, key: string, onEnded?: () => void): Promise<void> {
   stop()
   const mine = token
   const context = audioContext()
-  if (!context || !master) return playThroughElement(blob, mine)
+  if (!context || !master) return playThroughElement(blob, mine, onEnded)
 
   let buffer: AudioBuffer
   try {
     buffer = await decode(context, blob, key)
   } catch {
     // Safari cannot decode webm/opus, and a truncated clip can fail here too.
-    if (mine !== token) return
-    return playThroughElement(blob, mine)
+    if (mine !== token) {
+      onEnded?.()
+      return
+    }
+    return playThroughElement(blob, mine, onEnded)
   }
-  if (mine !== token) return
+  if (mine !== token) {
+    onEnded?.()
+    return
+  }
 
   const node = context.createBufferSource()
   node.buffer = buffer
   const level = context.createGain()
   level.gain.value = levelGain(buffer, key)
   node.connect(level).connect(master)
+  if (onEnded) endings.push(onEnded)
   node.onended = () => {
     sources = sources.filter((n) => n !== node)
+    if (onEnded) {
+      endings = endings.filter((f) => f !== onEnded)
+      onEnded()
+    }
   }
   sources.push(node)
   node.start()
