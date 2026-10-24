@@ -377,6 +377,10 @@ function Thread({
         setPending(result)
         if (result.decision === 'choice') {
           await say([start.choice], 'choice')
+        } else if (result.reason === 'transcript fits better') {
+          // Heard clearly, just not an answer this line knows: "didn't
+          // understand", never "didn't hear".
+          await say([start.offscript], 'unclear')
         } else {
           await say([start.unclear], 'unclear')
         }
@@ -405,9 +409,11 @@ function Thread({
     try {
       const step = await confirmTurn(start.id, turnId, { answer_id: answer.id, how })
       if (mine) updateMine(mine, { status: 'heard', turnId: null })
+      // A slot answer ("Jeg heter …") is shown as what was actually said.
+      const said = answer.text.includes('…') && pending?.transcript ? pending.transcript : answer.text
       setMessages((m) => [
         ...m,
-        { key: nextKey(), from: 'me', text: answer.text, heard: null, turnId, answers: node.answers, status: 'done' },
+        { key: nextKey(), from: 'me', text: said, heard: null, turnId, answers: node.answers, status: 'done' },
       ])
       await follow(step)
     } catch (e) {

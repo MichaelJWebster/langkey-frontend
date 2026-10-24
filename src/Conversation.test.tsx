@@ -64,6 +64,7 @@ const START: ConversationStart = {
   node: { id: 'hvordan', line: line('Hvordan har du det?', 'How are you?'), answers: ANSWERS },
   unclear: line('Unnskyld, jeg hørte ikke helt.'),
   choice: line('Unnskyld, hva sa du?'),
+  offscript: line('Beklager, det forstod jeg ikke helt.'),
 }
 
 const NEXT_STEP: Step = {
@@ -148,8 +149,19 @@ describe('Conversation thread', () => {
     expect(chips.isConnected).toBe(false)
   })
 
+  it('heard clearly but off-script: "didn\'t understand", not "didn\'t hear"', async () => {
+    api.sendTurn.mockResolvedValue(
+      turn({ decision: 'unclear', reason: 'transcript fits better', transcript: 'Jeg har en hund' }),
+    )
+    await openThread()
+    await speak()
+
+    expect(await screen.findByText('Beklager, det forstod jeg ikke helt.')).toBeTruthy()
+    expect(screen.queryByText('Unnskyld, jeg hørte ikke helt.')).toBeNull()
+  })
+
   it('when unclear, lets you try again or pick from every answer', async () => {
-    api.sendTurn.mockResolvedValue(turn({ decision: 'unclear', transcript: 'Jeg har en hund' }))
+    api.sendTurn.mockResolvedValue(turn({ decision: 'unclear', reason: 'nothing heard', transcript: 'Jeg har en hund' }))
     await openThread()
     await speak()
 

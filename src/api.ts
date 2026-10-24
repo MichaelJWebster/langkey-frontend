@@ -664,6 +664,8 @@ export interface ConversationStart {
   node: DialogueNode
   unclear: Line
   choice: Line
+  /** Said when you were heard clearly but the line does not expect that. */
+  offscript: Line
 }
 
 export interface Step {
